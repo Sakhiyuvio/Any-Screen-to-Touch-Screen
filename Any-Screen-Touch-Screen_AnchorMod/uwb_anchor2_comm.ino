@@ -33,8 +33,11 @@ void setup()
     DW1000Ranging.initCommunication(RST_pin, CS_pin, INT_pin);
 
     // create and call handlers here, to get ranging data, LED, and device activation
+    DW1000Ranging.attachNewRange(ranging_handler); // process distance data between anchor and pen
+    DW1000Ranging.attachBlinkDevice(new_dev_handler); 
+    DW1000Ranging.attachInactiveDevice(inactive_handler);
 
-    // dsp pipeline here, filtering dist data 
+    // dsp pipeline here, filtering dist data and/or improve accuracy
 
     // start dwm as an anchor module, second anchor
     DW1000Ranging.startAsAnchor(ANCHOR_ADDR_2, DW1000.MODE_LONGDATA_RANGE_LOWPOWER, false);    
@@ -50,8 +53,10 @@ void ranging_handler()
         Serial.print("\nCurrent Range: ");
         Serial.print(DW1000Ranging.getDistantDevice()->getRange()); 
         Serial.print(" m"); // distance measurement unit
-        
-        // might need to analyze signal power here, skip for now 
+    }
+    
+    return; 
+    // might need to analyze signal power here, skip for now 
 }
 
 // LED blinks to indicate device connection
@@ -63,7 +68,8 @@ void LED_handler(DW1000Device *dev)
     Serial.print(dev->getShortAddress(), HEX);
 }
 
-void inactive_handler(DW1000Device *dev){
+void inactive_handler(DW1000Device *dev)
+{
 
     // debugging purpose, prints inactivity 
     Serial.print("Inactivity detected!");
@@ -72,7 +78,8 @@ void inactive_handler(DW1000Device *dev){
 }
 
 // continuous looping for uwb real-time data processing 
-void uwb_data_polling(){
+void uwb_data_polling()
+{
     // continuously loop to gather ranging data, 
     // this function handles the Two-Way Ranging Algorithm to accurately measure distance 
     // between anchor and pen. 
