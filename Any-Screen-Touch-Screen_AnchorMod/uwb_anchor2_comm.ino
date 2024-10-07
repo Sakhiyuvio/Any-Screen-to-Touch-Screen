@@ -5,6 +5,7 @@
 #include "DW1000Ranging.h"
 
 #define ANCHOR_ADDR_2 "86:17:5B:D5:A9:9A:E2:9D" // use reference from makerlab for now
+#define PEN_UWB_ADDR "86:17:5B:D5:A9:9A:E2:9A" // pen
 
 // ESP32-S3 SPI pin config
 #define SPI_SCLK 20 
@@ -43,11 +44,20 @@ void setup()
     DW1000Ranging.startAsAnchor(ANCHOR_ADDR_2, DW1000.MODE_LONGDATA_RANGE_LOWPOWER, false);    
 }
 
+// continuous looping for uwb real-time data processing 
+void loop()
+{
+    // continuously loop to gather ranging data, 
+    // this function handles the Two-Way Ranging Algorithm to accurately measure distance 
+    // between anchor and pen. 
+    DW1000Ranging.loop()
+}
+
 // handler functions
 void ranging_handler()
 {
     // get info of tag addr, only perform ranging if talking to pen uwb 
-    if(DW1000Ranging.getDistantDevice()->getShortAddress() == pen_addr){ // define pen_addr
+    if(DW1000Ranging.getDistantDevice()->getShortAddress() == PEN_UWB_ADDR){ // define pen_addr
         Serial.print("Data from: ");
         Serial.print(DW1000Ranging.getDistantDevice()->getShortAddress(), HEX); // print hex address 
         Serial.print("\nCurrent Range: ");
@@ -55,6 +65,9 @@ void ranging_handler()
         Serial.print(" m"); // distance measurement unit
     }
     
+    else {
+        Serial.print("Data Invalid (Unknown)");
+    }
     return; 
     // might need to analyze signal power here, skip for now 
 }
@@ -75,13 +88,4 @@ void inactive_handler(DW1000Device *dev)
     Serial.print("Inactivity detected!");
     Serial.print("\tinactive device short address: \n");
     Serial.print(dev->getShortAddress(), HEX);
-}
-
-// continuous looping for uwb real-time data processing 
-void uwb_data_polling()
-{
-    // continuously loop to gather ranging data, 
-    // this function handles the Two-Way Ranging Algorithm to accurately measure distance 
-    // between anchor and pen. 
-    DW1000Ranging.loop()
 }
