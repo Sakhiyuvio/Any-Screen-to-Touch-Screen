@@ -4,9 +4,9 @@
 
 #define PEN_UWB_ADDR "86:17:5B:D5:A9:9A:E2:9A" // unique addr
 
-// anchor addresses
-#define ANCHOR_ADDR_1 "86:17:5B:D5:A9:9A:E2:9C"
-#define ANCHOR_ADDR_2 "86:17:5B:D5:A9:9A:E2:9D"
+// anchor short addresses
+#define ANCHOR_ADDR_1 0xE29C
+#define ANCHOR_ADDR_2 0xE29D 
 // ESP32-S3 SPI pin config
 #define SPI_SCLK 20
 #define SPI_MISO 21
@@ -24,6 +24,7 @@ const uint8_t INT_pin = 39;
 void setup()
 {
     Serial.begin(coomm_data_rate);
+        
     // set up bluetooth/WiFi config here for communicating data
 
     // add logic for Bluetooth HID as well?
@@ -33,6 +34,9 @@ void setup()
     DW1000Ranging.initCommunication(RST_pin, CS_pin, INT_pin);
 
     // handlers of getting data and connecting to other uwb transceivers
+    DW1000Ranging.attachNewRange(ranging_handler);
+    DW1000Ranging.attachNewDevice(new_dev_handler);
+    DW1000Ranging.attachInactiveDevice(inactive_handler);
 
     // start DWM as tag 
     DW1000Ranging.startAsTag(PEN_UWB_ADDR, DW1000.MODE_LONGDATA_RANGE_LOWPOWER);
@@ -54,7 +58,56 @@ void loop() // Arduino IDE, continuous looping
 // handler functions
 void ranging_handler()
 {
-    uint16_t device_addr = 
+    // seek the anchor addresses
+    // while not found
+    int anchor_one_flag = 0;
+    int anchor_two_flag = 0; 
+    uint16_t device_addr; 
+
+    /* 
+    TO DO: 
+    Instead of only printing, store and send data to host device for HID 
+    */
+
+    // loop until the anchor devices are found 
+    while (!(anchor_one_flag) && !(anchor_two_flag)){
+        device_addr = DW1000Ranging.getDistantDevice()->getShortAddress();
+
+        if(device_addr == ANCHOR_ADDR_1 && !anchor_one_flag) {
+           // We know data is from anchor one
+           Serial.print("Data from anchor one: ");
+           Serial.print("\nCurrent Range: ");
+           Serial.print(device_addr->getRange());
+           Serial.print(" m");
+           // set flag
+           anchor_one_flag = 1;        
+        }
+
+        else if (device_addr == ANCHOR_ADDR_2 && !anchor_two_flag) {
+           // We know data is from anchor one
+           Serial.print("Data from anchor one: ");
+           Serial.print("\nCurrent Range: ");
+           Serial.print(device_addr->getRange());
+           Serial.print(" m");
+           // set flag
+           anchor_two_flag = 1;    
+        }
+    }
+}
+
+void new_dev_handler(DW1000Device* dev)
+{
+    // connection with uwb anchors
+    Serial.print("a new device is connected, ready for ranging!");
+    Serial.print("\tdevice short address: \n");
+    Serial.print(dev->getShortAddress(), HEX);
+}
+
+void inactive_handler(DW1000Device* dev)
+{
+    Serial.print("Inactivity detected!");
+    Serial.print("\tInactive device short address: \n");
+    Serial.print(dev->getShortAddress(), HEX); 
 }
 
 

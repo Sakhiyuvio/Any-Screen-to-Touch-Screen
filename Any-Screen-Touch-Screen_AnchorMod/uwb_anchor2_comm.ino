@@ -5,7 +5,7 @@
 #include "DW1000Ranging.h"
 
 #define ANCHOR_ADDR_2 "86:17:5B:D5:A9:9A:E2:9D" // use reference from makerlab for now
-#define PEN_UWB_ADDR "86:17:5B:D5:A9:9A:E2:9A" // pen
+#define PEN_UWB_ADDR 0xE29A // pen short address
 
 // ESP32-S3 SPI pin config
 #define SPI_SCLK 20 
@@ -50,7 +50,7 @@ void loop()
     // continuously loop to gather ranging data, 
     // this function handles the Two-Way Ranging Algorithm to accurately measure distance 
     // between anchor and pen. 
-    DW1000Ranging.loop()
+    DW1000Ranging.loop();
 }
 
 // handler functions
@@ -86,6 +86,6 @@ void inactive_handler(DW1000Device *dev)
 
     // debugging purpose, prints inactivity 
     Serial.print("Inactivity detected!");
-    Serial.print("\tinactive device short address: \n");
+    Serial.print("\tInactive device short address: \n");
     Serial.print(dev->getShortAddress(), HEX);
 }
