@@ -169,8 +169,22 @@ void loop() // Arduino IDE, continuous looping
 }
 
 // localization function
-void localization_algo(float roll_angle, float pitch_angle, float range_uwb_1, float range_uwb_2) {
+void localization_algo(float roll_angle, float pitch_angle, float range_uwb_1, float range_uwb_2, float screen_width, float pen_length) {
     // END GOAL: UPDATE CURR_X and CURR_Y for screen emulation 
+
+    // process the UWB ranging data 
+    float x_coord, y_coord;
+    float opp_side_trig; 
+    float adj_side_trig 
+    
+    x_coord = (pow(range_uwb_1, 2) + pow(screen_width, 2) - pow(range_uwb_2, 2)) / 2;
+    adj_side_trig = pow(range_uwb_1, 2) + pow(screen_width, 2) - pow(range_uwb_2, 2);
+    opp_side_trig = sqrt(pow(2*range_uwb_1, 2) - pow(adj_side_trig, 2));
+    y_coord = opp_side_trig / 2; 
+
+    // take care of tilting
+    
+
 }
 
 // mouse emulation function
