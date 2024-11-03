@@ -173,7 +173,8 @@ void localization_algo(float roll_angle, float pitch_angle, float range_uwb_1, f
     // END GOAL: UPDATE CURR_X and CURR_Y for screen emulation 
 
     // process the UWB ranging data 
-    float x_coord, y_coord;
+    float x_coord, y_coord, y_tilt_offset;
+    float pitch_angle_rad 
     float opp_side_trig; 
     float adj_side_trig 
     
@@ -183,8 +184,15 @@ void localization_algo(float roll_angle, float pitch_angle, float range_uwb_1, f
     y_coord = opp_side_trig / 2; 
 
     // take care of tilting
-    
 
+    // extra design restriction: pitch angle detects only tilting with constant x coord! 
+    pitch_angle_rad = pitch_angle * PI / 180; 
+    y_tilt_offset = pen_length * cos(pitch_angle_rad);
+
+    curr_x = x_coord;
+    curr_y = y_coord - y_tilt_offset;
+
+    return; 
 }
 
 // mouse emulation function
