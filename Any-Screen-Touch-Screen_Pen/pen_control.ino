@@ -36,6 +36,13 @@
 // gravitational constant
 #define g 9.8
 
+// BLE mouse vars 
+#define SCROLL_THRES 1000
+#define CLICK_THRES 100
+
+unsigned long pen_button_start_time = 0; 
+bool is_pen_pressed = false; 
+
 const uint8_t RST_pin = 5;
 const uint8_t CS_pin = 18;
 const uint8_t INT_pin = 39; 
@@ -66,6 +73,7 @@ unsigned long prev_time;
 
 // global variables to keep track of current screen coordinates
 float curr_x, curr_y; 
+float prev_x, prev_y; 
 
 // bluetooth mouse instance
 BLEMouse mouse_em;
@@ -113,6 +121,13 @@ void setup()
     DW1000Ranging.startAsTag(PEN_UWB_ADDR, DW1000.MODE_LONGDATA_RANGE_LOWPOWER);
 
     // TO DO: set up data post-processing to host device here, via Bluetooth BLE
+    // TO DO: I think the cursor should be initialized during calibration process 
+    // set to 0 for now
+    prev_x = 0; 
+    prev_y = 0;
+    curr_x = 0; 
+    curr_y = 0; 
+
 
     // bluetooth HID init
     BLEDevice::init("ESP32-MOUSE-HID");
@@ -134,8 +149,7 @@ void loop() // Arduino IDE, continuous looping
     gyr_x = gyroscope_sensor[0];
     gyr_y = gyroscope_sensor[1]; 
 
-    // perform adaptive noise filtering on the IMU sensor 
-
+    // perform adaptive noise filtering on the IMU sensor (Optional for now)
 
     // update time variables
     delta_t = (millis() - prev_time) / 1000.0;
@@ -155,13 +169,10 @@ void loop() // Arduino IDE, continuous looping
     // pass in the tilting angle, as well as ranging parameters
     localization_algo(curr_roll_angle, curr_pitch_angle, curr_range_uwb_1, curr_range_uwb_2); 
 
-    // process these data to replicate bluetooth HID
-    if (digitalread(PEN_BUTTON) == LOW) {
-        // Bluetooth HID emulation here, use the coordinates received after localization
-        if (mouse_em.isConnected()) {
-            send_mouse_emulation(); 
-            // CONSIDER DELAYS
-        }
+    // process these data to replicate bluetooth HID        // Bluetooth HID emulation here, use the coordinates received after localization
+    if (mouse_em.isConnected()) {
+        send_mouse_emulation(); 
+        // CONSIDER DELAYS, use visual feedback to see if there are lags due to host device being overwhelmed 
     }
 
     // add logic, set a timeout based protocol to send data 
@@ -197,7 +208,59 @@ void localization_algo(float roll_angle, float pitch_angle, float range_uwb_1, f
 
 // mouse emulation function
 void send_mouse_emulation() {
+
+    int delta_cursor_x, int delta_cursor_y; 
+    int scroll_amount = 10; // default, test via visual feedback 
+
+    unsigned long press_duration; 
+
+    // check if button has been depressed for the first time, if yes, keep track of when. 
     
+    if (digitalRead(PEN_BUTTON) == LOW) { 
+        if(is_pen_pressed == false) {
+            pen_button_start_time = millis();
+            is_pen_pressed = true;
+        }
+        press_duration = millis() - pen_button_start_time; 
+        delta_cursor_x = curr_x - prev_x;
+        delta_cursor_y = curr_y - prev_y; 
+
+        // differentiate between scrolling, clicking, and moving
+        if (press_duration >= SCROLL_THRES) {
+            // implement scrolling here
+            // differentiate between scroll up and down
+            if (delta_cursor_y > 0) {
+                // scroll up
+                mouse_em.move(0, 0, scroll_amount);
+                delay(10);
+            }
+            else if (delta_cursor_y < 0) {
+                // scroll down 
+                mouse_em.move(0, 0, -scroll_amount);
+                delay(10);
+            }
+
+            // else, static hold, no need to scroll 
+
+        }
+        else {
+            // implement smooth movement of the cursor, until the pen button is high
+            mouse_em.move(delta_cursor_x, delta_cursor_y); 
+            delay(10);
+        }
+    }
+    else if (digitalRead(PEN_BUTTON) == HIGH && is_pen_pressed) {
+        press_duration = millis() - pen_button_start_time;
+
+        if (press_duration < CLICK_THRES){
+            // implement clicking here 
+            mouse_em.click(MOUSE_LEFT);
+            delay(10); // delay to allow the host device react upon the Bluetooth HID command 
+        }
+
+        is_pen_pressed = false; 
+    }
+
 }
 
 // handler functions
