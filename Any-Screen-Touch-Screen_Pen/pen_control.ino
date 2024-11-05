@@ -4,6 +4,8 @@
 #include "LSM6DSLSensor.h"
 #include <BleMouse.h>
 #include <BLEDevice.h>
+#include <BLEUtils.h>
+#include <BLEServer.h>
 
 #define PEN_UWB_ADDR "86:17:5B:D5:A9:9A:E2:9A" // unique addr
 
@@ -39,6 +41,11 @@
 // BLE mouse vars 
 #define SCROLL_THRES 1000
 #define CLICK_THRES 100
+
+// BLE setup
+BLEServer *pServer = NULL;
+BLECharacteristic *pCharacteristic = NULL;
+bool host_dev_connected = false;
 
 unsigned long pen_button_start_time = 0; 
 bool is_pen_pressed = false; 
@@ -80,7 +87,7 @@ BLEMouse mouse_em;
 
 void setup()
 {
-    Serial.begin(coomm_data_rate);
+    Serial.begin(comm_data_rate);
 
     // init IMU communication
     imu_dev_spi.begin();
@@ -129,10 +136,21 @@ void setup()
     curr_y = 0; 
 
 
-    // bluetooth HID init
-    BLEDevice::init("ESP32-MOUSE-HID");
-    mouse_em.begin();
+    // BLE dev and HID init
+    BLEDevice::init("ESP32-BLE");
+    pServer = BLEDevice::createServer();
+    pServer->setCallbacks(new MyServerCallbacks());
+    // BLE service
+    BLEService *pService = pServer->createService(BLEUUID((uint16_t)0x180F)); // service uuid
+    pCharacteristic = pService->createCharacteristic(
+        BLEUUID((uint16_t)0x2A19), // char uuid
+        BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_NOTIFY
+    );
 
+    pService->start();
+    pServer->getAdvertising()->start();
+    Serial.println("BLE Waiting for GUI Connection...");
+    mouse_em.begin();
 }
 
 void loop() // Arduino IDE, continuous looping 
@@ -169,14 +187,22 @@ void loop() // Arduino IDE, continuous looping
     // pass in the tilting angle, as well as ranging parameters
     localization_algo(curr_roll_angle, curr_pitch_angle, curr_range_uwb_1, curr_range_uwb_2); 
 
+    // add logic, set a timeout based protocol to send data 
+    // and signal to host device for monitoring
+    if (host_dev_connected) {
+        // send binary buffer
+        uint8_t data[8]; // per byte
+        memcpy(data, &curr_x, sizeof(float));
+        memcpy(data + sizeof(float), &curr_y, sizeof(float));
+        pCharacteristic->setValue(data, 8);
+        pCharacteristic->notify();
+    }
+
     // process these data to replicate bluetooth HID        // Bluetooth HID emulation here, use the coordinates received after localization
     if (mouse_em.isConnected()) {
         send_mouse_emulation(); 
         // CONSIDER DELAYS, use visual feedback to see if there are lags due to host device being overwhelmed 
     }
-
-    // add logic, set a timeout based protocol to send data 
-    // and signal to host device for monitoring
 }
 
 // localization function
@@ -185,7 +211,7 @@ void localization_algo(float roll_angle, float pitch_angle, float range_uwb_1, f
 
     // process the UWB ranging data 
     float x_coord, y_coord, y_tilt_offset;
-    float pitch_angle_rad 
+    float pitch_angle_rad;
     float opp_side_trig; 
     float adj_side_trig 
     
@@ -274,7 +300,7 @@ void ranging_handler()
 
     /* 
     TO DO: 
-    Instead of only printing, store and send data to host device for HID 
+    Instead of only printing, store and send data to host device for HID (MUTHU)
     */
 
     // loop until both the anchor devices are found 
@@ -331,4 +357,17 @@ void inactive_handler(DW1000Device* dev)
     Serial.print(dev->getShortAddress(), HEX); 
 }
 
+// BLE callback
+
+class MyServerCallbacks: public BLEServerCallbacks {
+    void onConnect (BLEServer* pServer) {
+        host_dev_connected = true;
+        Serial.println("Connected to GUI");
+    }
+
+    void onDisconnect (BLEServer* pServer) {
+        host_dev_connected = false;
+        Serial.println("Disconnected from GUI");
+    }
+};
 
