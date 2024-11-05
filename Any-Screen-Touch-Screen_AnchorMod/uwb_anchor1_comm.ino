@@ -8,10 +8,10 @@
 #define PEN_UWB_ADDR 0xE29A // pen short address
 
 // ESP32-S3 SPI pin config
-#define SPI_SCLK 20 
-#define SPI_MISO 21 
-#define SPI_MOSI 19
-#define SPI_CS 18 
+#define SPI_SCLK 12
+#define SPI_MISO 13
+#define SPI_MOSI 11
+#define SPI_CS 10
 
 // data rate 
 #define comm_data_rate 115920 // communication of dwm1000 > 110kbps, stretch a bit higher for delay and accuracy purposes
@@ -19,9 +19,9 @@
 
 // DWM1000 pin config
 // ranging library utilizes uint8_t for parameters
-const uint8_t RST_pin = 5;
-const uint8_t CS_pin = 18;
-const uint8_t INT_pin = 39;
+const uint8_t RST_pin = 7;
+const uint8_t CS_pin = 10;
+const uint8_t INT_pin = 4;
 
 void setup()
 {

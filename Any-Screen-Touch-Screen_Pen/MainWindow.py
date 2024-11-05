@@ -29,8 +29,8 @@
 
             # Setup BLE config
             self.ESP32_NAME = "ESP32-BLE"
-            self.ESP32_SERVICE_UUID = "180F"
-            self.ESP32_CHARACTERISTIC_UUID = "2A19"
+            self.ESP32_SERVICE_UUID = "12345678-1234-5678-1234-56789abcdef0"
+            self.ESP32_CHARACTERISTIC_UUID = "12345678-1234-5678-1234-56789abcdef1"
             self.client: Optional[BleakClient] = None
             self.connected = False
 

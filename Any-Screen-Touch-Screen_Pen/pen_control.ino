@@ -8,25 +8,27 @@
 #include <BLEServer.h>
 
 #define PEN_UWB_ADDR "86:17:5B:D5:A9:9A:E2:9A" // unique addr
+#define SERVICE_UUID "12345678-1234-5678-1234-56789abcdef0"
+#define CHARACTERISTIC_UUID "12345678-1234-5678-1234-56789abcdef1"
 
 // anchor short addresses
 #define ANCHOR_ADDR_1 0xE29C
 #define ANCHOR_ADDR_2 0xE29D 
 
 // ESP32-S3 SPI pin config - UWB
-#define SPI_SCLK 20
-#define SPI_MISO 21
-#define SPI_MOSI 19
-#define SPI_CS 18
+#define SPI_SCLK 12
+#define SPI_MISO 13
+#define SPI_MOSI 11
+#define SPI_CS 10
 
 // ESP32-S3 SPI pin config - IMU
-#define IMU_SPI_SCLK 12
-#define IMU_SPI_MISO 17
+#define IMU_SPI_SCLK 8
+#define IMU_SPI_MISO 9
 #define IMU_SPI_MOSI 7
 #define IMU_SPI_CS 6
 
 // ESP32-S3 pen-button pin
-#define PEN_BUTTON 23 
+#define PEN_BUTTON 21  
 
 // data rate for pen comm
 #define comm_data_rate 115920
@@ -51,8 +53,8 @@ unsigned long pen_button_start_time = 0;
 bool is_pen_pressed = false; 
 
 const uint8_t RST_pin = 5;
-const uint8_t CS_pin = 18;
-const uint8_t INT_pin = 39; 
+const uint8_t CS_pin = 10;
+const uint8_t INT_pin = 1; 
 
 // global SPI class and lsm6dsl instance for the IMU
 SPIClass imu_dev_spi(IMU_SPI_MOSI, IMU_SPI_MISO, IMU_SPI_SCLK);
@@ -83,11 +85,12 @@ float curr_x, curr_y;
 float prev_x, prev_y; 
 
 // bluetooth mouse instance
-BLEMouse mouse_em;
+BLEMouse bleMouse;
 
 void setup()
 {
     Serial.begin(comm_data_rate);
+    delay(comm_init_delay);
 
     // init IMU communication
     imu_dev_spi.begin();
@@ -141,16 +144,16 @@ void setup()
     pServer = BLEDevice::createServer();
     pServer->setCallbacks(new MyServerCallbacks());
     // BLE service
-    BLEService *pService = pServer->createService(BLEUUID((uint16_t)0x180F)); // service uuid
+    BLEService *pService = pServer->createService(SERVICE_UUID); // service uuid
     pCharacteristic = pService->createCharacteristic(
-        BLEUUID((uint16_t)0x2A19), // char uuid
+        CHARACTERISTIC_UUID, // char uuid
         BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_NOTIFY
     );
 
     pService->start();
     pServer->getAdvertising()->start();
     Serial.println("BLE Waiting for GUI Connection...");
-    mouse_em.begin();
+    bleMouse.begin();
 }
 
 void loop() // Arduino IDE, continuous looping 
@@ -199,7 +202,7 @@ void loop() // Arduino IDE, continuous looping
     }
 
     // process these data to replicate bluetooth HID        // Bluetooth HID emulation here, use the coordinates received after localization
-    if (mouse_em.isConnected()) {
+    if (bleMouse.isConnected()) {
         send_mouse_emulation(); 
         // CONSIDER DELAYS, use visual feedback to see if there are lags due to host device being overwhelmed 
     }
@@ -257,12 +260,12 @@ void send_mouse_emulation() {
             // differentiate between scroll up and down
             if (delta_cursor_y > 0) {
                 // scroll up
-                mouse_em.move(0, 0, scroll_amount);
+                bleMouse.move(0, 0, scroll_amount);
                 delay(10);
             }
             else if (delta_cursor_y < 0) {
                 // scroll down 
-                mouse_em.move(0, 0, -scroll_amount);
+                bleMouse.move(0, 0, -scroll_amount);
                 delay(10);
             }
 
@@ -271,7 +274,7 @@ void send_mouse_emulation() {
         }
         else {
             // implement smooth movement of the cursor, until the pen button is high
-            mouse_em.move(delta_cursor_x, delta_cursor_y); 
+            bleMouse.move(delta_cursor_x, delta_cursor_y); 
             delay(10);
         }
     }
@@ -280,7 +283,7 @@ void send_mouse_emulation() {
 
         if (press_duration < CLICK_THRES){
             // implement clicking here 
-            mouse_em.click(MOUSE_LEFT);
+            bleMouse.click(MOUSE_LEFT);
             delay(10); // delay to allow the host device react upon the Bluetooth HID command 
         }
 
