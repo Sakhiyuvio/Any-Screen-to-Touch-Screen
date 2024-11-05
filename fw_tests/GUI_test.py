@@ -4,9 +4,9 @@ from bleak import BleakClient, BleakScanner
 from typing import Optional
 
 # Constants for the ESP32 BLE setup
-ESP32_NAME = "ESP32-BLE"  # Replace with your ESP32 BLE name
-ESP32_SERVICE_UUID = "12345678-1234-5678-1234-56789abcdef0"  # Replace with actual service UUID
-ESP32_CHARACTERISTIC_UUID = "12345678-1234-5678-1234-56789abcdef1"  # Replace with actual characteristic UUID
+ESP32_NAME = "ESP32-BLE" 
+ESP32_SERVICE_UUID = "12345678-1234-5678-1234-56789abcdef0"  
+ESP32_CHARACTERISTIC_UUID = "12345678-1234-5678-1234-56789abcdef1"  
 
 class BLETester:
     def __init__(self):
