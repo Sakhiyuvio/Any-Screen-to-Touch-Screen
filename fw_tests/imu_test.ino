@@ -2,10 +2,12 @@
 #include "LSM6DSLSensor.h"
 
 // ESP32-S3 SPI pin config - IMU
-#define IMU_SPI_SCLK 18
-#define IMU_SPI_MISO 23
-#define IMU_SPI_MOSI 19
-#define IMU_SPI_CS 5
+#define IMU_SPI_SCLK 8
+#define IMU_SPI_MISO 9
+#define IMU_SPI_MOSI 7
+#define IMU_SPI_CS 6
+#define IMU_INT_1 18
+#define IMU_INT_2 19
 
 // serial comm data rate
 #define comm_data_rate 115920
@@ -41,6 +43,8 @@ void setup()
     Serial.begin(comm_data_rate);
 
     // init IMU communication
+    pinMode(IMU_INT_1, INPUT_PULLDOWN);
+    pinMode(IMU_INT_2, INPUT_PULLDOWN);
     imu_dev_spi.begin();
     if (acc_gyr.begin() == 0) {
         Serial.print("IMU initialized successfully");

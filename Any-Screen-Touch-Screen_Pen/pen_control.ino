@@ -26,6 +26,8 @@
 #define IMU_SPI_MISO 9
 #define IMU_SPI_MOSI 7
 #define IMU_SPI_CS 6
+#define IMU_INT_1 18
+#define IMU_INT_2 19
 
 // ESP32-S3 pen-button pin
 #define PEN_BUTTON 21  
@@ -93,6 +95,8 @@ void setup()
     delay(comm_init_delay);
 
     // init IMU communication
+    pinMode(IMU_INT_1, INPUT_PULLDOWN);
+    pinMode(IMU_INT_2, INPUT_PULLDOWN);
     imu_dev_spi.begin();
     acc_gyr.begin();
     // consider delaying after init on sensor 
