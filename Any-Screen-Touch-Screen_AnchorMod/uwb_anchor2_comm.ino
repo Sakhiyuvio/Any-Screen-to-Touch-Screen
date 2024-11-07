@@ -14,7 +14,7 @@
 #define SPI_CS 10
 
 // data rate 
-#define comm_data_rate 115920 // communication of dwm1000 > 110kbps, stretch a bit higher for delay and accuracy purposes
+#define comm_data_rate 115200 // communication of dwm1000 > 110kbps, stretch a bit higher for delay and accuracy purposes
 #define comm_init_delay 1000 // 1 s 
 
 // DWM1000 pin config

@@ -1,11 +1,12 @@
 
 #include <SPI.h>
 #include "DW1000Ranging.h"
-#include "LSM6DSLSensor.h"
 #include <BleMouse.h>
 #include <BLEDevice.h>
 #include <BLEUtils.h>
 #include <BLEServer.h>
+#include <Adafruit_LSM6DS.h>
+#include <Adafruit_LSM6DSL.h>
 
 #define PEN_UWB_ADDR "86:17:5B:D5:A9:9A:E2:9A" // unique addr
 #define SERVICE_UUID "12345678-1234-5678-1234-56789abcdef0"
@@ -33,11 +34,8 @@
 #define PEN_BUTTON 21  
 
 // data rate for pen comm
-#define comm_data_rate 115920
+#define comm_data_rate 115200
 #define comm_init_delay 1000 
-
-// pi
-#define PI 3.14159265358979323846
 
 // gravitational constant
 #define g 9.8
@@ -59,18 +57,16 @@ const uint8_t CS_pin = 10;
 const uint8_t INT_pin = 1; 
 
 // global SPI class and lsm6dsl instance for the IMU
-SPIClass imu_dev_spi(IMU_SPI_MOSI, IMU_SPI_MISO, IMU_SPI_SCLK);
-LSM6DSLSensor acc_gyr(&imu_dev_spi, IMU_SPI_CS);    
+SPIClass SPI2;
+Adafruit_LSM6DSL imu_dsl;
 
 // global variables for ranging storage - uwb
 float curr_range_uwb_1;
 float curr_range_uwb_2; 
 
 // global variables for imu
-int32_t accelerometer_sensor[3]; 
-int32_t gyroscope_sensor[3];
-int32_t acc_x, acc_y, acc_z; 
-int32_t gyr_x, gyr_y; 
+float acc_x, acc_y, acc_z;
+float gyr_x, gyr_y;
 float acc_roll_angle, acc_pitch_angle;
 float gyr_roll_angle, gyr_pitch_angle; 
 float curr_pitch_angle;
@@ -97,11 +93,15 @@ void setup()
     // init IMU communication
     pinMode(IMU_INT_1, INPUT_PULLDOWN);
     pinMode(IMU_INT_2, INPUT_PULLDOWN);
-    imu_dev_spi.begin();
-    acc_gyr.begin();
-    // consider delaying after init on sensor 
-    acc_gyr.Enable_X();
-    acc_gyr.Enable_G();
+    // Configure pins
+    pinMode(IMU_SPI_CS, OUTPUT);
+    digitalWrite(IMU_SPI_CS, HIGH);  // Initially HIGH
+    SPI2.begin(IMU_SPI_SCLK, IMU_SPI_MISO, IMU_SPI_MOSI, IMU_SPI_CS);
+    if(!imu_dsl.begin_SPI(IMU_SPI_CS, &SPI2)){
+      if(!imu_dsl.begin_SPI(IMU_SPI_CS, IMU_SPI_SCLK, IMU_SPI_MISO, IMU_SPI_MOSI)){
+         Serial.println("Failed to find LSM6DSL chip");
+       }  
+    }
     acc_x = 0; 
     acc_y = 0;
     acc_z = 0; 
@@ -165,14 +165,16 @@ void loop() // Arduino IDE, continuous looping
     DW1000Ranging.loop(); // tag-anchor communication
 
     // set up ranging loop for the IMU here
-    acc_gyr.Get_X_Axes(accelerometer_sensor);
-    acc_gyr.Get_G_Axes(gyroscope_sensor);
+    sensors_event_t accel;
+    sensors_event_t gyro;
+    sensors_event_t temp;
+    imu_dsl.getEvent(&accel, &gyro, &temp);
 
-    acc_x = accelerometer_sensor[0];
-    acc_y = accelerometer_sensor[1];
-    acc_z = accelerometer_sensor[2]; 
-    gyr_x = gyroscope_sensor[0];
-    gyr_y = gyroscope_sensor[1]; 
+    acc_x = accel.acceleration.x;
+    acc_y = accel.acceleration.y;
+    acc_z = accel.acceleration.z;
+    gyr_x = gyro.gyro.x;
+    gyr_y = gyro.gyro.y;
 
     // perform adaptive noise filtering on the IMU sensor (Optional for now)
 
@@ -229,17 +231,23 @@ void localization_algo(float roll_angle, float pitch_angle, float range_uwb_1, f
 
     // take care of tilting
 
-    // extra design restriction: pitch angle detects only tilting with constant x coord! 
+    // for now, pitch angle is forward/backward tilt
+    // roll angle is left/right tilt 
     pitch_angle_rad = pitch_angle * PI / 180; 
-    y_tilt_offset = pen_length * cos(pitch_angle_rad);
+    roll_angle_rad = roll_angle * PI / 180;
 
-    curr_x = x_coord;
+    y_tilt_offset = pen_length * cos(pitch_angle_rad);
+    x_tilt_offset = pen_length * cos(roll_angle_rad);
+
+    curr_x = x_coord - x_tilt_offset;
     curr_y = y_coord - y_tilt_offset;
 
     return; 
 }
 
 // mouse emulation function
+
+/* TO DO: CHECK IF CURSOR X AND Y GOES BEYOND LIMIT */ 
 void send_mouse_emulation() {
 
     int delta_cursor_x, int delta_cursor_y; 
