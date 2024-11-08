@@ -79,8 +79,9 @@ float delta_t;
 unsigned long prev_time; 
 
 // global variables to keep track of current screen coordinates
-float curr_x, curr_y; 
-float prev_x, prev_y; 
+float curr_x, curr_y;
+int cursor_x, cursor_y;
+int prev_x, prev_y; 
 
 // bluetooth mouse instance
 BLEMouse bleMouse;
@@ -137,11 +138,12 @@ void setup()
     // TO DO: set up data post-processing to host device here, via Bluetooth BLE
     // TO DO: I think the cursor should be initialized during calibration process 
     // set to 0 for now
+    curr_x = 0.0;
+    curr_y = 0.0;
+    cursor_x = 0;
+    cursor_y = 0;
     prev_x = 0; 
-    prev_y = 0;
-    curr_x = 0; 
-    curr_y = 0; 
-
+    prev_y = 0; 
 
     // BLE dev and HID init
     BLEDevice::init("ESP32-BLE");
@@ -211,11 +213,14 @@ void loop() // Arduino IDE, continuous looping
     if (bleMouse.isConnected()) {
         send_mouse_emulation(); 
         // CONSIDER DELAYS, use visual feedback to see if there are lags due to host device being overwhelmed 
+        // set prev_x and prev_y to be the current cursor values before updated
+        prev_x = cursor_x; 
+        prev_y = cursor_y; 
     }
 }
 
 // localization function
-void localization_algo(float roll_angle, float pitch_angle, float range_uwb_1, float range_uwb_2, float screen_width, float pen_length) {
+void localization_algo(float roll_angle, float pitch_angle, float range_uwb_1, float range_uwb_2, float pen_length, float screen_width, float screen_height, int res_x, int res_y) {
     // END GOAL: UPDATE CURR_X and CURR_Y for screen emulation 
 
     // process the UWB ranging data 
@@ -224,25 +229,31 @@ void localization_algo(float roll_angle, float pitch_angle, float range_uwb_1, f
     float opp_side_trig; 
     float adj_side_trig 
     
-    x_coord = (pow(range_uwb_1, 2) + pow(screen_width, 2) - pow(range_uwb_2, 2)) / 2;
+    x_coord = (pow(range_uwb_1, 2) + pow(screen_width, 2) - pow(range_uwb_2, 2)) / (2*screen_width);
     adj_side_trig = pow(range_uwb_1, 2) + pow(screen_width, 2) - pow(range_uwb_2, 2);
     opp_side_trig = sqrt(pow(2*range_uwb_1, 2) - pow(adj_side_trig, 2));
-    y_coord = opp_side_trig / 2; 
+    y_coord = opp_side_trig / (2*screen_width);
 
     // take care of tilting
 
     // for now, pitch angle is forward/backward tilt
-    // roll angle is left/right tilt 
-    pitch_angle_rad = pitch_angle * PI / 180; 
+    // roll angle is left/right tilt
+    pitch_angle_rad = pitch_angle * PI / 180;
     roll_angle_rad = roll_angle * PI / 180;
 
-    y_tilt_offset = pen_length * cos(pitch_angle_rad);
-    x_tilt_offset = pen_length * cos(roll_angle_rad);
+    y_tilt_offset = pen_length / 100 * sin(pitch_angle_rad); // convert from cm to m
+    x_tilt_offset = pen_length / 100 * cos(roll_angle_rad);
 
-    curr_x = x_coord - x_tilt_offset;
+    // get distance calculation
+//    curr_x = x_coord - x_tilt_offset;
+    curr_x = x_coord; // still unsure about the x tilting offset, might add extra restriction.
     curr_y = y_coord - y_tilt_offset;
 
-    return; 
+    // convert to screen pixel coordinates
+    cursor_x = int(curr_x * (res_x / screen_width));
+    cursor_y = int(curr_y * (res_y / screen_height));
+    return;
+
 }
 
 // mouse emulation function
@@ -263,8 +274,8 @@ void send_mouse_emulation() {
             is_pen_pressed = true;
         }
         press_duration = millis() - pen_button_start_time; 
-        delta_cursor_x = curr_x - prev_x;
-        delta_cursor_y = curr_y - prev_y; 
+        delta_cursor_x = cursor_x - prev_x;
+        delta_cursor_y = cursor_y - prev_y; 
 
         // differentiate between scrolling, clicking, and moving
         if (press_duration >= SCROLL_THRES) {
