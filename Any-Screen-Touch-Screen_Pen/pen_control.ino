@@ -229,10 +229,10 @@ void localization_algo(float roll_angle, float pitch_angle, float range_uwb_1, f
     float opp_side_trig; 
     float adj_side_trig 
     
-    x_coord = (pow(range_uwb_1, 2) + pow(screen_width, 2) - pow(range_uwb_2, 2)) / (2*screen_width);
+    x_coord = (pow(range_uwb_1, 2) + pow(screen_width, 2) - pow(range_uwb_2, 2)) / 2*screen_width;
     adj_side_trig = pow(range_uwb_1, 2) + pow(screen_width, 2) - pow(range_uwb_2, 2);
-    opp_side_trig = sqrt(pow(2*range_uwb_1, 2) - pow(adj_side_trig, 2));
-    y_coord = opp_side_trig / (2*screen_width);
+    opp_side_trig = sqrt(pow(2*range_uwb_1*screen_width, 2) - pow(adj_side_trig, 2));
+    y_coord = opp_side_trig / 2*screen_width;
 
     // take care of tilting
 
@@ -247,7 +247,7 @@ void localization_algo(float roll_angle, float pitch_angle, float range_uwb_1, f
     // get distance calculation
 //    curr_x = x_coord - x_tilt_offset;
     curr_x = x_coord; // still unsure about the x tilting offset, might add extra restriction.
-    curr_y = y_coord - y_tilt_offset;
+    curr_y = y_coord + y_tilt_offset; // plus or minus depends on orientation of pen button vs dwm
 
     // convert to screen pixel coordinates
     cursor_x = int(curr_x * (res_x / screen_width));
@@ -258,7 +258,6 @@ void localization_algo(float roll_angle, float pitch_angle, float range_uwb_1, f
 
 // mouse emulation function
 
-/* TO DO: CHECK IF CURSOR X AND Y GOES BEYOND LIMIT */ 
 void send_mouse_emulation() {
 
     int delta_cursor_x, int delta_cursor_y; 
