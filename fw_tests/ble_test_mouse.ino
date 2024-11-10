@@ -1,26 +1,27 @@
-#include <BLEMouse.h>
+#include <BleConnectionStatus.h>
+#include <BleMouse.h>
 
 #define comm_data_rate 115920
 #define comm_init_delay 1000
 
 // global variables to keep track of current screen coordinates
-float curr_x, curr_y; 
-float prev_x, prev_y; 
+float curr_x, curr_y;
+float prev_x, prev_y;
 
 // bluetooth mouse instance
-BLEMouse bleMouse;
+BleMouse bleMouse;
 
 void setup()
 {
     Serial.begin(comm_data_rate);
     delay(comm_init_delay);
-    
+   
     // BLE HID init
-    curr_x = 0; 
+    curr_x = 0;
     curr_y = 0;
     prev_x = 0;
-    prev_y = 0; 
-    BLEDevice::init("ESP32-BLE-MOUSE-TEST");
+    prev_y = 0;
+//    BLEDevice::init("ESP32-BLE-MOUSE-TEST");
     bleMouse.begin();
 }
 
@@ -29,8 +30,8 @@ void loop()
     // process these data to replicate bluetooth HID        // Bluetooth HID emulation here, use the coordinates received after localization
     if (bleMouse.isConnected()) {
         Serial.println("Connected to BLE Mouse");
-        send_mouse_emulation_test(); 
-        // CONSIDER DELAYS, use visual feedback to see if there are lags due to host device being overwhelmed 
+        send_mouse_emulation_test();
+        // CONSIDER DELAYS, use visual feedback to see if there are lags due to host device being overwhelmed
     }
 }
 

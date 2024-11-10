@@ -142,15 +142,21 @@ void localization_algo(float roll_angle, float pitch_angle, float range_uwb_1, f
     // END GOAL: UPDATE CURR_X and CURR_Y for screen emulation
 
     // process the UWB ranging data
-    float x_coord, y_coord, y_tilt_offset;
-    float pitch_angle_rad;
+    float x_coord, y_coord, x_tilt_offset, y_tilt_offset;
+    float pitch_angle_rad, roll_angle_rad;
     float opp_side_trig;
-    float adj_side_trig
-   
-    x_coord = (pow(range_uwb_1, 2) + pow(screen_width, 2) - pow(range_uwb_2, 2)) / 2*screen_width;
+    float adj_side_trig;
+
+//    Serial.print("param: ");
+//    Serial.print(pow(range_uwb_1, 2));
+//    Serial.print(pow(range_uwb_2, 2));
+//    Serial.print(pow(screen_width, 2));
+    x_coord = (pow(range_uwb_1, 2) + pow(screen_width, 2) - pow(range_uwb_2, 2)) / (2*screen_width);
+//    Serial.print((pow(range_uwb_1, 2) + pow(screen_width, 2) - pow(range_uwb_2, 2)) / (2*screen_width));
+//    Serial.print(2 * screen_width);
     adj_side_trig = pow(range_uwb_1, 2) + pow(screen_width, 2) - pow(range_uwb_2, 2);
     opp_side_trig = sqrt(pow(2*range_uwb_1*screen_width, 2) - pow(adj_side_trig, 2));
-    y_coord = opp_side_trig / 2*screen_width;
+    y_coord = opp_side_trig / (2*screen_width);
 
     // take care of tilting
 
@@ -179,41 +185,41 @@ void localization_algo_test(float roll_angle, float pitch_angle) {
   localization_algo(0, 0, 0.2, 0.4, 1, 0.5, 0.3, 255, 255);
   Serial.print(cursor_x);
   Serial.print(", ");
-  Serial.println(cursor_y); 
+  Serial.println(cursor_y);
 
-  // cursor x should be 66, cursor y should be 129 here 
-  
-  Serial.println("test localization algo: half-tilt"); 
-  localization_algo(45, 45, 0.2, 0.4, 1, 0.5, 0.3, 255, 255); 
+  // cursor x should be 66, cursor y should be 129 here
+ 
+  Serial.println("test localization algo: half-tilt");
+  localization_algo(45, 45, 0.2, 0.4, 1, 0.5, 0.3, 255, 255);
   Serial.print(cursor_x);
   Serial.print(", ");
   Serial.println(cursor_y);
 
   // cursor x should be 66, cursor y should be 135 here
 
-  Serial.println("test localization algo: quarter tilt"); 
-  localization_algo(22.5, 22.5, 0.2, 0.4, 1, 0.5, 0.3, 255, 255); 
+  Serial.println("test localization algo: quarter tilt");
+  localization_algo(22.5, 22.5, 0.2, 0.4, 1, 0.5, 0.3, 255, 255);
   Serial.print(cursor_x);
   Serial.print(", ");
   Serial.println(cursor_y);
 
-  // cursor x should be 66, cursor y should be 132 here 
+  // cursor x should be 66, cursor y should be 132 here
 
-  Serial.println("test localization algo: ranging + tilt"); 
-  localization_algo(45, 45, 0.334, 0.224, 1, 0.5, 0.3, 255, 255); 
+  Serial.println("test localization algo: ranging + tilt");
+  localization_algo(45, 45, 0.334, 0.224, 1, 0.5, 0.3, 255, 255);
   Serial.print(cursor_x);
   Serial.print(", ");
   Serial.println(cursor_y);
 
-  // cursor x should be 158, cursor y should be 108 
+  // cursor x should be 158, cursor y should be 108
 
   Serial.println("test localization algo: resolution");
-  localization_algo(45, 45, 0.334, 0.224, 1, 0.5, 0.3, 32, 32); 
+  localization_algo(45, 45, 0.334, 0.224, 1, 0.5, 0.3, 32, 32);
   Serial.print(cursor_x);
   Serial.print(", ");
   Serial.println(cursor_y);
 
-  // cursor x should be 19, cursor y should be 13 here 
+  // cursor x should be 19, cursor y should be 13 here
 }
 
 

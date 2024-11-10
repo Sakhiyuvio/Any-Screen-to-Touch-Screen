@@ -84,7 +84,7 @@ int cursor_x, cursor_y;
 int prev_x, prev_y; 
 
 // bluetooth mouse instance
-BLEMouse bleMouse;
+BleMouse bleMouse;
 
 void setup()
 {
@@ -224,15 +224,15 @@ void localization_algo(float roll_angle, float pitch_angle, float range_uwb_1, f
     // END GOAL: UPDATE CURR_X and CURR_Y for screen emulation 
 
     // process the UWB ranging data 
-    float x_coord, y_coord, y_tilt_offset;
-    float pitch_angle_rad;
-    float opp_side_trig; 
-    float adj_side_trig 
+    float x_coord, y_coord, x_tilt_offset, y_tilt_offset;
+    float pitch_angle_rad, roll_angle_rad;
+    float opp_side_trig;
+    float adj_side_trig;
     
-    x_coord = (pow(range_uwb_1, 2) + pow(screen_width, 2) - pow(range_uwb_2, 2)) / 2*screen_width;
+    x_coord = (pow(range_uwb_1, 2) + pow(screen_width, 2) - pow(range_uwb_2, 2)) / (2*screen_width);
     adj_side_trig = pow(range_uwb_1, 2) + pow(screen_width, 2) - pow(range_uwb_2, 2);
     opp_side_trig = sqrt(pow(2*range_uwb_1*screen_width, 2) - pow(adj_side_trig, 2));
-    y_coord = opp_side_trig / 2*screen_width;
+    y_coord = opp_side_trig / (2*screen_width);
 
     // take care of tilting
 
