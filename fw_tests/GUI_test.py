@@ -4,7 +4,7 @@ from bleak import BleakClient, BleakScanner
 from typing import Optional
 
 # Constants for the ESP32 BLE setup
-ESP32_NAME = "ESP32-BLE" 
+ESP32_NAME = "ESP32"
 ESP32_SERVICE_UUID = "12345678-1234-5678-1234-56789abcdef0"  
 ESP32_CHARACTERISTIC_UUID = "12345678-1234-5678-1234-56789abcdef1"  
 
@@ -16,6 +16,9 @@ class BLETester:
     async def connect_ble(self):
         try:
             print("Scanning for ESP32...")
+            # devices = await BleakScanner.discover()
+            # for device in devices:
+            #     print(device)            
             dev = await BleakScanner.find_device_by_filter(
                 lambda d, ad: d.name and d.name.lower() == ESP32_NAME.lower()
             )
@@ -24,12 +27,16 @@ class BLETester:
                 print("ESP32 not found!")
                 return
 
-            # Connect to the ESP32 device
-            print(f"Connecting to {dev.name}...")
             self.client = BleakClient(dev)
-            await self.client.connect()
+            await self.client.connect(timeout=10)
             self.connected = True
             print(f"Connected to {dev.name}!")
+    
+            services = await self.client.get_services()  # Get all services
+            for service in services:
+                print(f"Service UUID: {service.uuid}")
+                for char in service.characteristics:
+                    print(f"Characteristic UUID: {char.uuid}") 
 
             # Start notifications for the characteristic UUID
             await self.client.start_notify(
@@ -61,7 +68,7 @@ class BLETester:
         # Wait for notifications indefinitely (can be stopped manually)
         try:
             while self.connected:
-                await asyncio.sleep(1)  # Just keep the connection alive for testing
+                await asyncio.sleep(10)  # Just keep the connection alive for testing
         except KeyboardInterrupt:
             print("Test finished by user")
 

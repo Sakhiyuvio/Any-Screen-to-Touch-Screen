@@ -23,36 +23,6 @@ const uint8_t RST_pin = 7;
 const uint8_t CS_pin = 10;
 const uint8_t INT_pin = 4;
 
-void setup()
-{
-    // start communication protocol initialization
-    Serial.begin(comm_data_rate);
-    delay(comm_init_delay);
-
-    // SPI and DWM1000 initialization
-    SPI.begin(SPI_SCLK, SPI_MISO, SPI_MOSI, SPI_CS);
-    DW1000Ranging.initCommunication(RST_pin, CS_pin, INT_pin);
-
-    // create and call handlers here, to get ranging data, LED, and device activation
-    DW1000Ranging.attachNewRange(ranging_handler); // process distance data between anchor and pen
-    DW1000Ranging.attachBlinkDevice(new_dev_handler); 
-    DW1000Ranging.attachInactiveDevice(inactive_handler);
-
-    // dsp pipeline here, filtering dist data and/or improve accuracy
-
-    // start dwm as an anchor module, second anchor
-    DW1000Ranging.startAsAnchor(ANCHOR_ADDR_2, DW1000.MODE_LONGDATA_RANGE_LOWPOWER, false);    
-}
-
-// continuous looping for uwb real-time data processing 
-void loop()
-{
-    // continuously loop to gather ranging data, 
-    // this function handles the Two-Way Ranging Algorithm to accurately measure distance 
-    // between anchor and pen. 
-    DW1000Ranging.loop();
-}
-
 // handler functions
 void ranging_handler()
 {
@@ -88,4 +58,34 @@ void inactive_handler(DW1000Device *dev)
     Serial.print("Inactivity detected!");
     Serial.print("\tInactive device short address: \n");
     Serial.print(dev->getShortAddress(), HEX);
+}
+
+void setup()
+{
+    // start communication protocol initialization
+    Serial.begin(comm_data_rate);
+    delay(comm_init_delay);
+
+    // SPI and DWM1000 initialization
+    SPI.begin(SPI_SCLK, SPI_MISO, SPI_MOSI, SPI_CS);
+    DW1000Ranging.initCommunication(RST_pin, CS_pin, INT_pin);
+
+    // create and call handlers here, to get ranging data, LED, and device activation
+    DW1000Ranging.attachNewRange(ranging_handler); // process distance data between anchor and pen
+    DW1000Ranging.attachBlinkDevice(new_dev_handler); 
+    DW1000Ranging.attachInactiveDevice(inactive_handler);
+
+    // dsp pipeline here, filtering dist data and/or improve accuracy
+
+    // start dwm as an anchor module, second anchor
+    DW1000Ranging.startAsAnchor(ANCHOR_ADDR_2, DW1000.MODE_LONGDATA_RANGE_LOWPOWER, false);    
+}
+
+// continuous looping for uwb real-time data processing 
+void loop()
+{
+    // continuously loop to gather ranging data, 
+    // this function handles the Two-Way Ranging Algorithm to accurately measure distance 
+    // between anchor and pen. 
+    DW1000Ranging.loop();
 }

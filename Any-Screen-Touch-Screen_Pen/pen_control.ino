@@ -41,7 +41,7 @@
 #define g 9.8
 
 // BLE mouse vars 
-#define SCROLL_THRES 1000
+#define SCROLL_THRES 2000 // hold for 2 seconds to scroll
 #define CLICK_THRES 100
 
 // BLE setup
@@ -85,6 +85,20 @@ int prev_x, prev_y;
 
 // bluetooth mouse instance
 BleMouse bleMouse;
+
+// BLE callback
+
+class MyServerCallbacks: public BLEServerCallbacks {
+    void onConnect (BLEServer* pServer) {
+        host_dev_connected = true;
+        Serial.println("Connected to GUI");
+    }
+
+    void onDisconnect (BLEServer* pServer) {
+        host_dev_connected = false;
+        Serial.println("Disconnected from GUI");
+    }
+};
 
 void setup()
 {
@@ -260,7 +274,7 @@ void localization_algo(float roll_angle, float pitch_angle, float range_uwb_1, f
 
 void send_mouse_emulation() {
 
-    int delta_cursor_x, int delta_cursor_y; 
+    int delta_cursor_x, delta_cursor_y; 
     int scroll_amount = 10; // default, test via visual feedback 
 
     unsigned long press_duration; 
@@ -296,8 +310,6 @@ void send_mouse_emulation() {
         }
         else {
             // implement smooth movement of the cursor, until the pen button is high
-            bleMouse.move(delta_cursor_x, delta_cursor_y); 
-            delay(10);
         }
     }
     else if (digitalRead(PEN_BUTTON) == HIGH && is_pen_pressed) {
@@ -312,6 +324,9 @@ void send_mouse_emulation() {
         is_pen_pressed = false; 
     }
 
+    // always move the pen based on the delta cursor x and cursor y
+    bleMouse.move(delta_cursor_x, delta_cursor_y); 
+    delay(10);
 }
 
 // handler functions
@@ -381,18 +396,4 @@ void inactive_handler(DW1000Device* dev)
     Serial.print("\tInactive device short address: \n");
     Serial.print(dev->getShortAddress(), HEX); 
 }
-
-// BLE callback
-
-class MyServerCallbacks: public BLEServerCallbacks {
-    void onConnect (BLEServer* pServer) {
-        host_dev_connected = true;
-        Serial.println("Connected to GUI");
-    }
-
-    void onDisconnect (BLEServer* pServer) {
-        host_dev_connected = false;
-        Serial.println("Disconnected from GUI");
-    }
-};
 
