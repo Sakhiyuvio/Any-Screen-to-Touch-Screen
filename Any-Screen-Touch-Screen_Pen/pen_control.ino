@@ -42,7 +42,7 @@
 
 // BLE mouse vars 
 #define SCROLL_THRES 2000 // hold for 2 seconds to scroll
-#define CLICK_THRES 100
+#define CLICK_THRES 2000
 
 // BLE setup
 BLEServer *pServer = NULL;
