@@ -212,6 +212,15 @@ void loop() // Arduino IDE, continuous looping
     // pass in the tilting angle, as well as ranging parameters
     localization_algo(curr_roll_angle, curr_pitch_angle, curr_range_uwb_1, curr_range_uwb_2); 
 
+    // process these data to replicate bluetooth HID        // Bluetooth HID emulation here, use the coordinates received after localization
+    if (bleMouse.isConnected()) {
+        send_mouse_emulation(); 
+        // CONSIDER DELAYS, use visual feedback to see if there are lags due to host device being overwhelmed 
+        // set prev_x and prev_y to be the current cursor values before updated
+        prev_x = cursor_x; 
+        prev_y = cursor_y; 
+    }
+
     // add logic, set a timeout based protocol to send data 
     // and signal to host device for monitoring
     if (host_dev_connected) {
@@ -221,15 +230,6 @@ void loop() // Arduino IDE, continuous looping
         memcpy(data + sizeof(float), &curr_y, sizeof(float));
         pCharacteristic->setValue(data, 8);
         pCharacteristic->notify();
-    }
-
-    // process these data to replicate bluetooth HID        // Bluetooth HID emulation here, use the coordinates received after localization
-    if (bleMouse.isConnected()) {
-        send_mouse_emulation(); 
-        // CONSIDER DELAYS, use visual feedback to see if there are lags due to host device being overwhelmed 
-        // set prev_x and prev_y to be the current cursor values before updated
-        prev_x = cursor_x; 
-        prev_y = cursor_y; 
     }
 }
 
