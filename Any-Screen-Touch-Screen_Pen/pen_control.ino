@@ -83,6 +83,13 @@ float curr_x, curr_y;
 int cursor_x, cursor_y;
 int prev_x, prev_y; 
 
+// hardcoded parameters pre-calibration
+float pen_length = 1.0; 
+float screen_width = 0.5; 
+float screen_height = 0.3; 
+int res_x = 256; 
+int res_y = 256; 
+
 // bluetooth mouse instance
 BleMouse bleMouse;
 
@@ -210,7 +217,7 @@ void loop() // Arduino IDE, continuous looping
 
     // at each time instance, we need to be prepared to send coordinates of the pen on the screen
     // pass in the tilting angle, as well as ranging parameters
-    localization_algo(curr_roll_angle, curr_pitch_angle, curr_range_uwb_1, curr_range_uwb_2); 
+    localization_algo(curr_roll_angle, curr_pitch_angle, curr_range_uwb_1, curr_range_uwb_2, pen_length, screen_width, screen_height, res_x, res_y); 
 
     // process these data to replicate bluetooth HID        // Bluetooth HID emulation here, use the coordinates received after localization
     if (bleMouse.isConnected()) {
@@ -345,14 +352,14 @@ void ranging_handler()
 
     // loop until both the anchor devices are found 
     while (!(anchor_one_flag) && !(anchor_two_flag)){
-        curr_device = DW1000Ranging.getDistantDevice();
+        // curr_device = DW1000Ranging.getDistantDevice();
         device_addr = DW1000Ranging.getDistantDevice()->getShortAddress();
 
         if(device_addr == ANCHOR_ADDR_1 && !anchor_one_flag) {
            // We know data is from anchor one
 
            // send data for localization
-           curr_range_uwb_1 = curr_device->getRange();  
+           curr_range_uwb_1 = DW1000Ranging.getDistantDevice()->getRange();  
 
            // PRINT FOR TESTING
            Serial.print("Data from anchor one: ");
@@ -369,7 +376,7 @@ void ranging_handler()
            // We know data is from anchor two
 
            // send data for localization
-           curr_range_uwb_2 = curr_device->getRange();  
+           curr_range_uwb_2 = DW1000Ranging.getDistantDevice()->getRange();  
 
            // PRINT FOR TESTING
            Serial.print("Data from anchor one: ");
