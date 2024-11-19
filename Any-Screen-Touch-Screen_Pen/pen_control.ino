@@ -8,7 +8,7 @@
 #include <Adafruit_LSM6DS.h>
 #include <Adafruit_LSM6DSL.h>
 
-#define PEN_UWB_ADDR "86:17:5B:D5:A9:9A:E2:9A" // unique addr
+#define PEN_UWB_ADDR "7D:00:22:EA:82:60:3B:9C" // unique addr
 #define SERVICE_UUID "12345678-1234-5678-1234-56789abcdef0"
 #define CHARACTERISTIC_UUID "12345678-1234-5678-1234-56789abcdef1"
 

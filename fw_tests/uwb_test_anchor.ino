@@ -3,8 +3,7 @@
 
 #include <SPI.h> 
 #include "DW1000Ranging.h"
-
-#define ANCHOR_ADDR "82:17:5B:D5:A9:9A:E2:9C" // unique addr
+#include "DW1000.h"
 
 // ESP32-S3 SPI pin config
 #define SPI_SCLK 12
@@ -22,6 +21,11 @@ const uint8_t RST_pin = 7;
 const uint8_t CS_pin = 10;
 const uint8_t INT_pin = 4;
 
+char anchor_uwb_addr[] = "84:00:5B:D5:A9:9A:E2:9C"; // unique addr
+
+//calibrated Antenna Delay setting for this anchor
+uint16_t Adelay = 16580;
+
 void setup()
 {
     // start communication protocol initialization
@@ -32,15 +36,18 @@ void setup()
     SPI.begin(SPI_SCLK, SPI_MISO, SPI_MOSI);
     DW1000Ranging.initCommunication(RST_pin, CS_pin, INT_pin);
 
+    // set antenna delay for anchors only. Tag is default (16384)
+    // DW1000.setAntennaDelay(Adelay);
+
     // create and call handlers here, to get ranging data, LED, and device activation
     DW1000Ranging.attachNewRange(newRange); // process distance data between anchor and pen
-    DW1000Ranging.attachBlinkDevice(newBlink); 
+    DW1000Ranging.attachNewDevice(newDevice);
+    // DW1000Ranging.attachBlinkDevice(newBlink); 
     DW1000Ranging.attachInactiveDevice(inactiveDevice);
-
-    // dsp pipeline here, filtering dist data and/or improve accuracy
+    //DW1000Ranging.useRangeFilter(true);
 
     // start dwm as an anchor module, first anchor
-    DW1000Ranging.startAsAnchor(ANCHOR_ADDR, DW1000.MODE_LONGDATA_RANGE_LOWPOWER, false);    
+    DW1000Ranging.startAsAnchor(anchor_uwb_addr, DW1000.MODE_LONGDATA_RANGE_LOWPOWER, false);    
 }
 
 // continuous looping for uwb real-time data processing 
@@ -55,20 +62,24 @@ void loop()
 // handler functions
 void newRange()
 {
-    // get info of tag addr, only perform ranging if talking to pen uwb 
-    Serial.print("Data from: ");
-    Serial.print(DW1000Ranging.getDistantDevice()->getShortAddress(), HEX); // print hex address 
-    Serial.print("\nCurrent Range: ");
-    Serial.print(DW1000Ranging.getDistantDevice()->getRange()); 
-    Serial.print(" m"); // distance measurement unit
+    Serial.print("from: "); Serial.print(DW1000Ranging.getDistantDevice()->getShortAddress(), HEX);
+    Serial.print("\t Range: "); Serial.print(DW1000Ranging.getDistantDevice()->getRange()); Serial.print(" m");
+    Serial.print("\t RX power: "); Serial.print(DW1000Ranging.getDistantDevice()->getRXPower()); Serial.println(" dBm");
 }
+
+void newDevice(DW1000Device *device)
+{
+    Serial.print("Device added: ");
+    Serial.println(device->getShortAddress(), HEX);
+}
+
 // LED blinks to indicate device connection
 void newBlink(DW1000Device *device)
 {
     // connection with a new uwb sensor device 
-    Serial.print("blink: 1 device added -> ");
-    Serial.print("\tdevice short address: \n");
-    Serial.print(dev->getShortAddress(), HEX);
+    Serial.print("blink; 1 device added ! -> ");
+    Serial.print(" short:");
+    Serial.println(device->getShortAddress(), HEX);
 }
 
 void inactiveDevice(DW1000Device *device)
@@ -76,6 +87,5 @@ void inactiveDevice(DW1000Device *device)
 
     // debugging purpose, prints inactivity 
     Serial.print("delete inactive device: ");
-    Serial.print("\tInactive device short address: \n");
-    Serial.print(dev->getShortAddress(), HEX);
+    Serial.println(device->getShortAddress(), HEX);
 }

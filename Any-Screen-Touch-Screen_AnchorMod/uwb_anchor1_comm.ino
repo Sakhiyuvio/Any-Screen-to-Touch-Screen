@@ -4,7 +4,7 @@
 #include <SPI.h> 
 #include "DW1000Ranging.h"
 
-#define ANCHOR_ADDR_1 "86:17:5B:D5:A9:9A:E2:9C" // use reference from makerlab for now
+#define ANCHOR_ADDR_1 "82:17:5B:D5:A9:9A:E2:9C" // use reference from makerlab for now
 #define PEN_UWB_ADDR 0xE29A // pen short address
 
 // ESP32-S3 SPI pin config
