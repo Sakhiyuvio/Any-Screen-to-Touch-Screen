@@ -6,6 +6,8 @@
 #include "DW1000.h"
 
 #define ANCHOR_ADDR_1 "82:17:5B:D5:A9:9A:E2:9C" // use reference from makerlab for now
+#define ANCHOR_ADDR_2 "82:17:5B:D5:A9:9A:E2:9D" // use reference from makerlab for now
+
 #define PEN_UWB_ADDR 0xE29A // pen short address
 
 // ESP32-S3 SPI pin config
@@ -24,37 +26,62 @@ const uint8_t RST_pin = 7;
 const uint8_t CS_pin = 10;
 const uint8_t INT_pin = 4;
 
-uint16_t calibrated_antenna_delay = 100; // change to actual calibrated delay after running calibration script
+float known_target_dist = 0.0; // change to actual measured distance in meter
+
+uint16_t curr_antenna_delay = 16600; 
+uint16_t binary_search_delta = 100; // binary search step size 
 
 // handler functions
-void ranging_handler()
-{
+void ranging_handler(){
     // get info of tag addr, only perform ranging if talking to pen uwb 
+    static float last_delta = 0.0; 
+
     Serial.print("Data from: ");
     Serial.print(DW1000Ranging.getDistantDevice()->getShortAddress(), HEX); // print hex address 
+
+    float recorded_dist = DW1000Ranging.getDistantDevice()->getRange();
+
     Serial.print("\nCurrent Range: ");
     Serial.print(DW1000Ranging.getDistantDevice()->getRange()); 
     Serial.print(" m"); // distance measurement unit
-    
-    else {
-        Serial.print("Data Invalid (Unknown)");
+
+    if (binary_search_delta) < 3 {
+        Serial.print("Antenna delay calibrated");
+        Serial.println(curr_antenna_delay);
+        while(1); // done, get the antenna delay and set it for the anchors individually 
     }
+
+    float new_delta = recorded_dist - known_target_dist;
+
+    if (new_delta * last_delta < 0.0) {
+        binary_search_delta = binary_search_delta / 2; 
+        last_delta = new_delta; 
+    }
+
+    if (new_delta > 0.0) {
+        curr_antenna_delay += binary_search_delta; 
+    }
+    else {
+        curr_antenna_delay -= binary_search_delta; 
+    }
+
+    DW1000.setAntennaDelay(curr_antenna_delay); 
+
     return; 
     // might need to analyze signal power here, skip for now 
 }
 
 // LED blinks to indicate device connection
-void LED_handler(DW1000Device *dev)
+void new_dev_handler(DW1000Device *dev)
 {
     // connection with a new uwb sensor device 
-    Serial.print("LED blink, a new device is connected!");
+    Serial.print("blink, a new device is connected!");
     Serial.print("\tdevice short address: \n");
     Serial.print(dev->getShortAddress(), HEX);
 }
 
 void inactive_handler(DW1000Device *dev)
 {
-
     // debugging purpose, prints inactivity 
     Serial.print("Inactivity detected!");
     Serial.print("\tInactive device short address: \n");
@@ -71,7 +98,9 @@ void setup()
     SPI.begin(SPI_SCLK, SPI_MISO, SPI_MOSI, SPI_CS);
     DW1000Ranging.initCommunication(RST_pin, CS_pin, INT_pin);
 
-    DW1000.setAntennaDelay(calibrated_antenna_delay); 
+    // setup initial antenna delay
+    Serial.print("Starting Antenna Delay");
+    DW1000.setAntennaDelay(curr_antenna_delay); 
 
     // create and call handlers here, to get ranging data, LED, and device activation
     DW1000Ranging.attachNewRange(ranging_handler); // process distance data between anchor and pen
@@ -80,8 +109,11 @@ void setup()
 
     // dsp pipeline here, filtering dist data and/or improve accuracy
 
-    // start dwm as an anchor module, second anchor
-    DW1000Ranging.startAsAnchor(ANCHOR_ADDR_1, DW1000.MODE_LONGDATA_RANGE_LOWPOWER, false);    
+    // start dwm as an anchor module, first/second depends on calibrating process
+
+    // DW1000Ranging.startAsAnchor(ANCHOR_ADDR_1, DW1000.MODE_LONGDATA_RANGE_LOWPOWER, false); 
+    // DW1000Ranging.startAsAnchor(ANCHOR_ADDR_2, DW1000.MODE_LONGDATA_RANGE_LOWPOWER, false);    
+   
 }
 
 // continuous looping for uwb real-time data processing 

@@ -3,8 +3,9 @@
 
 #include <SPI.h> 
 #include "DW1000Ranging.h"
+#include "DW1000.h"
 
-#define ANCHOR_ADDR_2 "82:17:5B:D5:A9:9A:E2:9D" // use reference from makerlab for now
+#define ANCHOR_ADDR_2 "84:17:5B:D5:A9:9A:E2:9C" // use reference from makerlab for now
 #define PEN_UWB_ADDR 0xE29A // pen short address
 
 // ESP32-S3 SPI pin config
@@ -22,6 +23,9 @@
 const uint8_t RST_pin = 7;
 const uint8_t CS_pin = 10;
 const uint8_t INT_pin = 4;
+
+uint16_t calibrated_antenna_delay = 100; // change to actual calibrated delay after running calibration script
+
 
 // handler functions
 void ranging_handler()
@@ -69,6 +73,8 @@ void setup()
     // SPI and DWM1000 initialization
     SPI.begin(SPI_SCLK, SPI_MISO, SPI_MOSI, SPI_CS);
     DW1000Ranging.initCommunication(RST_pin, CS_pin, INT_pin);
+
+    DW1000.setAntennaDelay(calibrated_antenna_delay); 
 
     // create and call handlers here, to get ranging data, LED, and device activation
     DW1000Ranging.attachNewRange(ranging_handler); // process distance data between anchor and pen

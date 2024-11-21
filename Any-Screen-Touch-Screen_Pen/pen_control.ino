@@ -154,7 +154,7 @@ void setup()
     DW1000Ranging.attachNewDevice(new_dev_handler);
     DW1000Ranging.attachInactiveDevice(inactive_handler);
     // start DWM as tag 
-    DW1000Ranging.startAsTag(PEN_UWB_ADDR, DW1000.MODE_LONGDATA_RANGE_LOWPOWER);
+    DW1000Ranging.startAsTag(PEN_UWB_ADDR, DW1000.MODE_LONGDATA_RANGE_LOWPOWER, false);
 
     // TO DO: set up data post-processing to host device here, via Bluetooth BLE
     // TO DO: I think the cursor should be initialized during calibration process 
