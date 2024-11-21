@@ -13,8 +13,8 @@
 #define CHARACTERISTIC_UUID "12345678-1234-5678-1234-56789abcdef1"
 
 // anchor short addresses
-#define ANCHOR_ADDR_1 0xE29C
-#define ANCHOR_ADDR_2 0xE29D 
+#define ANCHOR_ADDR_1 0x82
+#define ANCHOR_ADDR_2 0x84 
 
 // ESP32-S3 SPI pin config - UWB
 #define SPI_SCLK 12

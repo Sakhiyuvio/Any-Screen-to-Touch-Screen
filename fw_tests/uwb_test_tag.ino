@@ -15,8 +15,8 @@
 #define comm_data_rate 115200 // communication of dwm1000 > 110kbps, stretch a bit higher for delay and accuracy purposes
 #define comm_init_delay 1000 // 1 s 
 
-#define ANCHOR_ADDR_1 82
-#define ANCHOR_ADDR_2 84
+#define ANCHOR_ADDR_1 0x82
+#define ANCHOR_ADDR_2 0x84
 
 // DWM1000 pin config
 // ranging library utilizes uint8_t for parameters
