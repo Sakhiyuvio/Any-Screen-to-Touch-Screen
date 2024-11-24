@@ -24,7 +24,7 @@ const uint8_t RST_pin = 7;
 const uint8_t CS_pin = 10;
 const uint8_t INT_pin = 4;
 
-uint16_t calibrated_antenna_delay = 100; // change to actual calibrated delay after running calibration script
+uint16_t calibrated_antenna_delay = 16607; // antenna delay post-calibration
 
 // handler functions
 void ranging_handler()

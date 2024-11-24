@@ -18,6 +18,9 @@
 #define ANCHOR_ADDR_1 0x82
 #define ANCHOR_ADDR_2 0x84
 
+// sampling 
+#define NUM_SAMPLES 5
+
 // DWM1000 pin config
 // ranging library utilizes uint8_t for parameters
 const uint8_t RST_pin = 5;
@@ -27,6 +30,9 @@ const uint8_t INT_pin = 1;
 char pen_uwb_addr[] = "7D:00:22:EA:82:60:3B:9C"; // unique addr
 
 int anchor_one_flag, anchor_two_flag; // for uwb ranging handler
+
+float curr_range_uwb_1, curr_range_uwb_2; 
+float prev_range_uwb_1, prev_range_uwb_2; 
 
 
 void setup()
@@ -59,6 +65,10 @@ void setup()
     // start dwm as tag, set flag to 0 
     anchor_one_flag = 0;
     anchor_two_flag = 0; 
+    curr_range_uwb_1 = 0;
+    curr_range_uwb_2 = 0; 
+    // prev_range_uwb_1 = 0;
+    // prev_range_uwb_2 = 0; 
     DW1000Ranging.startAsTag(pen_uwb_addr, DW1000.MODE_LONGDATA_RANGE_LOWPOWER, false);    
 }
 
@@ -86,11 +96,8 @@ void newRange()
     anchor_one_flag = 0;
     anchor_two_flag = 0; 
     uint16_t device_addr; 
-
-    /* 
-    TO DO: 
-    Instead of only printing, store and send data to host device for HID (MUTHU)
-    */
+    int i; // loop var
+    float temp_range = 0; 
 
     // loop until both the anchor devices are found 
     // curr_device = DW1000Ranging.getDistantDevice();
@@ -99,8 +106,15 @@ void newRange()
     if(device_addr == ANCHOR_ADDR_1 && !anchor_one_flag) {
         // We know data is from anchor one
 
-        // send data for localization
-        curr_range_uwb_1 = DW1000Ranging.getDistantDevice()->getRange();  
+        // get data for localization
+        prev_range_uwb_1 = DW1000Ranging.getDistantDevice()->getRange(); 
+        for (i = 0; i < NUM_SAMPLES; i++) {
+            if (DW1000Ranging.getDistantDevice()->getRange() - prev_range_uwb_1 < abs(0.1)) {
+                temp_range += DW1000Ranging.getDistantDevice()->getRange();  
+            }
+        }
+
+        curr_range_uwb_1 = temp_range / NUM_SAMPLES; // moving avg sampling
 
         // PRINT FOR TESTING
         Serial.print("Data from anchor one: ");
@@ -116,18 +130,26 @@ void newRange()
     else if (device_addr == ANCHOR_ADDR_2 && !anchor_two_flag) {
         // We know data is from anchor two
 
-        // send data for localization
-        curr_range_uwb_2 = DW1000Ranging.getDistantDevice()->getRange();  
+        prev_range_uwb_2 = DW1000Ranging.getDistantDevice()->getRange(); 
+        for (i = 0; i < NUM_SAMPLES; i++) {
+            if (DW1000Ranging.getDistantDevice()->getRange() - prev_range_uwb_2 < abs(0.1)) {
+                temp_range += DW1000Ranging.getDistantDevice()->getRange();  
+            }
+        }
+        
+        curr_range_uwb_2 = temp_range / NUM_SAMPLES; // moving avg sampling
 
         // PRINT FOR TESTING
         Serial.print("Data from anchor one: ");
         Serial.print("\nCurrent Range: ");
         Serial.print(curr_range_uwb_2);
         Serial.print(" m");
+        
         // set flag
-        anchor_two_flag = 1;    
+        anchor_two_flag = 1;  
     }
 }
+
 // LED blinks to indicate device connection
 void newDevice(DW1000Device *device)
 {
