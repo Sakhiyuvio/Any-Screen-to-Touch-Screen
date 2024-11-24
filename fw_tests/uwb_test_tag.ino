@@ -67,8 +67,8 @@ void setup()
     anchor_two_flag = 0; 
     curr_range_uwb_1 = 0;
     curr_range_uwb_2 = 0; 
-    // prev_range_uwb_1 = 0;
-    // prev_range_uwb_2 = 0; 
+    prev_range_uwb_1 = 0;
+    prev_range_uwb_2 = 0; 
     DW1000Ranging.startAsTag(pen_uwb_addr, DW1000.MODE_LONGDATA_RANGE_LOWPOWER, false);    
 }
 
