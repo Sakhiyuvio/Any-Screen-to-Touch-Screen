@@ -141,11 +141,8 @@ void setup()
     delta_t = 0.0;
     prev_time = millis(); 
 
-    // init pen button
-    pinMode(PEN_BUTTON, INPUT);
-    // enabling internal pullup
-    digitalWrite(PEN_BUTTON, HIGH);
-
+    // init pen button, enabling internal pullup
+    pinMode(PEN_BUTTON, INPUT_PULLUP);
     // init uwb communication
     SPI.begin(SPI_SCLK, SPI_MISO, SPI_MOSI, SPI_CS);
     DW1000Ranging.initCommunication(RST_pin, CS_pin, INT_pin);
