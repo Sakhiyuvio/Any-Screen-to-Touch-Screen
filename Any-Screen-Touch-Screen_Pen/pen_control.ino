@@ -61,8 +61,8 @@ SPIClass SPI2;
 Adafruit_LSM6DSL imu_dsl;
 
 // global variables for ranging storage - uwb
-float curr_range_uwb_1;
-float curr_range_uwb_2; 
+float prev_range_uwb_1, curr_range_uwb_1;
+float prev_range_uwb_2, curr_range_uwb_2; 
 
 // global variables for imu
 float acc_x, acc_y, acc_z;
@@ -147,6 +147,8 @@ void setup()
     SPI.begin(SPI_SCLK, SPI_MISO, SPI_MOSI, SPI_CS);
     DW1000Ranging.initCommunication(RST_pin, CS_pin, INT_pin);
     // consider delaying 
+    prev_range_uwb_1 = 0; 
+    prev_range_uwb_2 = 0; 
     curr_range_uwb_1 = 0; 
     curr_range_uwb_2 = 0; 
     // handlers of getting data and connecting to other uwb transceivers
@@ -340,52 +342,60 @@ void send_mouse_emulation() {
 void ranging_handler()
 {
     // seek the anchor addresses
-    // while not found
-    int anchor_one_flag = 0;
-    int anchor_two_flag = 0; 
-    uint16_t device_addr; 
 
-    /* 
-    TO DO: 
-    Instead of only printing, store and send data to host device for HID (MUTHU)
-    */
+    uint16_t device_addr;
+    int i; // loop var
+    float temp_range = 0;
 
-    // loop until both the anchor devices are found 
-    while (!(anchor_one_flag) && !(anchor_two_flag)){
-        // curr_device = DW1000Ranging.getDistantDevice();
-        device_addr = DW1000Ranging.getDistantDevice()->getShortAddress();
+    // loop until both the anchor devices are found
+    // curr_device = DW1000Ranging.getDistantDevice();
+    device_addr = DW1000Ranging.getDistantDevice()->getShortAddress();
 
-        if(device_addr == ANCHOR_ADDR_1 && !anchor_one_flag) {
-           // We know data is from anchor one
+    if(device_addr == ANCHOR_ADDR_1) {
+        // We know data is from anchor one
 
-           // send data for localization
-           curr_range_uwb_1 = DW1000Ranging.getDistantDevice()->getRange();  
+        // get data for localization
+        prev_range_uwb_1 = DW1000Ranging.getDistantDevice()->getRange();
+        for (i = 0; i < NUM_SAMPLES; i++) {
+            if (DW1000Ranging.getDistantDevice()->getRange() < 0){
+              continue;
+            }
+            if (DW1000Ranging.getDistantDevice()->getRange() - prev_range_uwb_1 < abs(0.1)) { // hyper parameter from prev distance, can make it stricter
+                temp_range += DW1000Ranging.getDistantDevice()->getRange();  
+            }
+        }
 
-           // PRINT FOR TESTING
-           Serial.print("Data from anchor one: ");
-           Serial.print("\nCurrent Range: ");
-           Serial.print(curr_range_uwb_1);
-           Serial.print(" m");
-        
-           // set flag
-           anchor_one_flag = 1;    
+        curr_range_uwb_1 = temp_range / NUM_SAMPLES; // moving avg sampling
+
+        // PRINT FOR TESTING
+        Serial.print("Data from anchor one: ");
+        Serial.print("\nCurrent Range: ");
+        Serial.print(curr_range_uwb_1);
+        Serial.print(" m"); 
    
+    }
+
+    else if (device_addr == ANCHOR_ADDR_2) {
+        // We know data is from anchor two
+
+        prev_range_uwb_2 = DW1000Ranging.getDistantDevice()->getRange();
+        for (i = 0; i < NUM_SAMPLES; i++) {
+            if (DW1000Ranging.getDistantDevice()->getRange() < 0){
+              continue;
+            }
+            if (DW1000Ranging.getDistantDevice()->getRange() - prev_range_uwb_2 < abs(0.1)) {
+                temp_range += DW1000Ranging.getDistantDevice()->getRange();  
+            }
         }
+       
+        curr_range_uwb_2 = temp_range / NUM_SAMPLES; // moving avg sampling
 
-        else if (device_addr == ANCHOR_ADDR_2 && !anchor_two_flag) {
-           // We know data is from anchor two
-
-           // send data for localization
-           curr_range_uwb_2 = DW1000Ranging.getDistantDevice()->getRange();  
-
-           // PRINT FOR TESTING
-           Serial.print("Data from anchor one: ");
-           Serial.print("\nCurrent Range: ");
-           Serial.print(curr_range_uwb_2);
-           Serial.print(" m");
-           // set flag
-           anchor_two_flag = 1;    
-        }
+        // PRINT FOR TESTING
+        Serial.print("Data from anchor one: ");
+        Serial.print("\nCurrent Range: ");
+        Serial.print(curr_range_uwb_2);
+        Serial.print(" m");
+    
     }
 }
 
