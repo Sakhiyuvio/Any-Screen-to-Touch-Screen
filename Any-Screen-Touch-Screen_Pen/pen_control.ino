@@ -44,6 +44,9 @@
 #define SCROLL_THRES 2000 // hold for 2 seconds to scroll
 #define CLICK_THRES 2000
 
+// samples for ranging
+#define NUM_SAMPLES 3
+
 // BLE setup
 BLEServer *pServer = NULL;
 BLECharacteristic *pCharacteristic = NULL;
