@@ -44,7 +44,7 @@
 #define CLICK_THRES 2000
 
 // samples for ranging
-#define NUM_SAMPLES 3
+#define NUM_SAMPLES 30
 
 // BLE setup
 BLEServer *pServer = NULL;
@@ -65,6 +65,12 @@ Adafruit_LSM6DSL imu_dsl;
 // global variables for ranging storage - uwb
 float prev_range_uwb_1, curr_range_uwb_1;
 float prev_range_uwb_2, curr_range_uwb_2;
+float range_uwb_1_buf[NUM_SAMPLES] = {0};
+float range_uwb_2_buf[NUM_SAMPLES] = {0};
+int uwb_1_buf_idx = 0;
+int uwb_2_buf_idx = 0;
+int count_idx_1 = 0; 
+int count_idx_2 = 0; 
 
 // global variables for imu
 float acc_x, acc_y, acc_z;
@@ -226,13 +232,13 @@ void loop() // Arduino IDE, continuous looping
   // process these data to replicate bluetooth HID        // Bluetooth HID emulation here, use the coordinates received after localization
   if (bleMouse.isConnected()) {
     // update per 20 milliseconds 
-    if (millis() - prev_time > 20) {
-        send_mouse_emulation();
-        // CONSIDER DELAYS, use visual feedback to see if there are lags due to host device being overwhelmed
-        // set prev_x and prev_y to be the current cursor values before updated
-        prev_x = cursor_x;
-        prev_y = cursor_y;
-    }
+    // if (millis() - prev_time > 20) {
+    send_mouse_emulation();
+    // CONSIDER DELAYS, use visual feedback to see if there are lags due to host device being overwhelmed
+    // set prev_x and prev_y to be the current cursor values before updated
+    prev_x = cursor_x;
+    prev_y = cursor_y;
+    // }
   }
 
   prev_time = millis();
@@ -312,11 +318,11 @@ void send_mouse_emulation() {
     delta_cursor_y = cursor_y - prev_y;
 
     // dead zone implementation
-    if (delta_cursor_x < 2 && delta_cursor_y < 2) {
-        // to avoid small unnecessary fluctuational changes 
-        delta_cursor_x = 0; 
-        delta_cursor_y = 0; 
-    }
+    // if (delta_cursor_x < 2 && delta_cursor_y < 2) {
+    //     // to avoid small unnecessary fluctuational changes 
+    //     delta_cursor_x = 0; 
+    //     delta_cursor_y = 0; 
+    // }
 
     // differentiate between scrolling, clicking, and moving
     if (press_duration >= SCROLL_THRES) {
@@ -357,18 +363,33 @@ void send_mouse_emulation() {
   delay(10);
 }
 
+void update_range_buf(float buffer[], int &index, int new_range){
+    buffer[index] = new_range;
+    index = (index+1) % NUM_SAMPLES;
+}
+
+float moving_avg(float buffer[], int size){
+    float sum = 0.0;
+    for (int i = 0; i < size; i++) {
+        sum += buffer[i];
+    }
+
+    return sum/size; 
+}
+
 // handler functions
 void ranging_handler()
 {
   // seek the anchor addresses
 
   uint16_t device_addr;
-  int i; // loop var
-  float temp_range = 0;
+  int size = NUM_SAMPLES; 
+  float new_range; 
 
   // loop until both the anchor devices are found
   // curr_device = DW1000Ranging.getDistantDevice();
   device_addr = DW1000Ranging.getDistantDevice()->getShortAddress();
+  new_range = DW1000Ranging.getDistantDevice()->getRange();
 
   if (device_addr == ANCHOR_ADDR_1) {
     // We know data is from anchor one
@@ -378,16 +399,21 @@ void ranging_handler()
         prev_range_uwb_1 = DW1000Ranging.getDistantDevice()->getRange();
     }
 
-    for (i = 0; i < NUM_SAMPLES; i++) {
-//      if (DW1000Ranging.getDistantDevice()->getRange() < 0) {
-//        continue;
-//      }
-      if (abs(DW1000Ranging.getDistantDevice()->getRange() - prev_range_uwb_1) < 0.1) { // hyper parameter from prev distance, can make it stricter
-        temp_range += DW1000Ranging.getDistantDevice()->getRange();
-      }
+    // NOTE: might need thresholding 
+    // if (abs(DW1000Ranging.getDistantDevice()->getRange() - prev_range_uwb_1) < 0.05) {
+        
+    // }
+
+    update_range_buf(range_uwb_1_buf, uwb_1_buf_idx, new_range);
+
+    if (count_idx_1 < NUM_SAMPLES){ 
+        count_idx_1++; 
+        curr_range_uwb_1 = moving_avg(range_uwb_1_buf, count_idx_1);
+    }
+    else {
+        curr_range_uwb_1 = moving_avg(range_uwb_1_buf, NUM_SAMPLES);
     }
 
-    curr_range_uwb_1 = temp_range / NUM_SAMPLES; // moving avg sampling
     prev_range_uwb_1 = curr_range_uwb_1; 
 
     // PRINT FOR TESTING
@@ -401,19 +427,27 @@ void ranging_handler()
   else if (device_addr == ANCHOR_ADDR_2) {
     // We know data is from anchor two
 
+
+    // get data for localization
     if (prev_range_uwb_2 == 0.0) {
         prev_range_uwb_2 = DW1000Ranging.getDistantDevice()->getRange();
     }
-    for (i = 0; i < NUM_SAMPLES; i++) {
-//      if (DW1000Ranging.getDistantDevice()->getRange() < 0) {
-//        continue;
-//      }
-      if (abs(DW1000Ranging.getDistantDevice()->getRange() - prev_range_uwb_2) < 0.1) {
-        temp_range += DW1000Ranging.getDistantDevice()->getRange();
-      }
+
+    // NOTE: might need thresholding 
+    // if (abs(DW1000Ranging.getDistantDevice()->getRange() - prev_range_uwb_1) < 0.05) {
+        
+    // }
+
+    update_range_buf(range_uwb_2_buf, uwb_2_buf_idx, new_range);
+
+    if (count_idx_2 < NUM_SAMPLES){ 
+        count_idx_2++; 
+        curr_range_uwb_1 = moving_avg(range_uwb_2_buf, count_idx_2);
+    }
+    else {
+        curr_range_uwb_2 = moving_avg(range_uwb_2_buf, NUM_SAMPLES);
     }
 
-    curr_range_uwb_2 = temp_range / NUM_SAMPLES; // moving avg sampling
     prev_range_uwb_2 = curr_range_uwb_2; 
 
     // PRINT FOR TESTING
