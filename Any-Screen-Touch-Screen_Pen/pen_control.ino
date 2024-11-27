@@ -363,7 +363,7 @@ void send_mouse_emulation() {
   delay(10);
 }
 
-void update_range_buf(float buffer[], int &index, int new_range){
+void update_range_buf(float buffer[], int &index, float new_range){
     buffer[index] = new_range;
     index = (index+1) % NUM_SAMPLES;
 }
