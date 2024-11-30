@@ -45,6 +45,7 @@
 
 // samples for ranging
 #define NUM_SAMPLES 30
+#define RADIUS 5 // 5 m/s^2 uncertainties
 
 // BLE setup
 BLEServer *pServer = NULL;
@@ -71,6 +72,12 @@ int uwb_1_buf_idx = 0;
 int uwb_2_buf_idx = 0;
 int count_idx_1 = 0; 
 int count_idx_2 = 0; 
+// float weight_factor_1 = 0; 
+// float weight_factor_2 = 0; 
+// float known_dist_1 = 0; // change to actual known_distance for scaling configuration 
+// float known_dist_2 = 0; // change to actual known_distance for scaling configuration 
+// int set_flag_1 = 0; 
+// int set_flag_2 = 0; 
 
 // global variables for imu
 float acc_x, acc_y, acc_z;
@@ -196,6 +203,9 @@ void setup()
 
 void loop() // Arduino IDE, continuous looping
 {
+  // update time variables
+  delta_t = (millis() - prev_time) / 1000.0;
+
   DW1000Ranging.loop(); // tag-anchor communication
 
   // set up ranging loop for the IMU here
@@ -211,9 +221,6 @@ void loop() // Arduino IDE, continuous looping
   gyr_y = gyro.gyro.y;
 
   // perform adaptive noise filtering on the IMU sensor (Optional for now)
-
-  // update time variables
-  delta_t = (millis() - prev_time) / 1000.0;
 
   // process the roll and pitch angle for configurating tilting through IMU sensor
   acc_roll_angle = atan2(acc_y / g, acc_z / g) * 180 / PI;
@@ -385,6 +392,11 @@ void ranging_handler()
   uint16_t device_addr;
   int size = NUM_SAMPLES; 
   float new_range; 
+  float acc_uwb_1, acc_uwb_2; 
+  float pre_scale_1, pre_scale_2; 
+  // initialize acceleration data
+  acc_uwb_1 = 0; 
+  acc_uwb_2 = 0; 
 
   // loop until both the anchor devices are found
   // curr_device = DW1000Ranging.getDistantDevice();
@@ -395,26 +407,39 @@ void ranging_handler()
     // We know data is from anchor one
 
     // get data for localization
-    if (prev_range_uwb_1 == 0.0) {
-        prev_range_uwb_1 = DW1000Ranging.getDistantDevice()->getRange();
+    prev_range_uwb_1 = DW1000Ranging.getDistantDevice()->getRange();
+
+    // NOTE: acceleration thresholding 
+    acc_uwb_1 = abs((curr_range_uwb_1 - prev_range_uwb_1) / pow(delta_t, 2)); 
+
+    // outlier thresholding 
+    if (acc_uwb_1 - abs(acc_x) > RADIUS || acc_uwb_1 - abs(acc_y) > RADIUS || acc_uwb_1 - abs(acc_z) > RADIUS) {
+        return; 
     }
-
-    // NOTE: might need thresholding 
-    // if (abs(DW1000Ranging.getDistantDevice()->getRange() - prev_range_uwb_1) < 0.05) {
-        
-    // }
-
+    
     update_range_buf(range_uwb_1_buf, uwb_1_buf_idx, new_range);
 
     if (count_idx_1 < NUM_SAMPLES){ 
         count_idx_1++; 
+        // pre_scale_1 = moving_avg(range_uwb_1_buf, count_idx_1); 
         curr_range_uwb_1 = moving_avg(range_uwb_1_buf, count_idx_1);
     }
     else {
+        // pre_scale_1 = moving_avg(range_uwb_1_buf, NUM_SAMPLES); 
         curr_range_uwb_1 = moving_avg(range_uwb_1_buf, NUM_SAMPLES);
     }
 
-    prev_range_uwb_1 = curr_range_uwb_1; 
+    // if (!set_flag_1) {
+    //   weight_factor_1 = known_dist / pre_scale_1; 
+    //   set_flag_1 = 1; 
+    // }
+
+    // get a more accurate representation of range from the scaling! 
+    // if (pre_scale_1 < 0) {
+      // curr_range_uwb_1 = -weight_factor * pre_scale_1; 
+ // }
+    // else {curr_range_uwb_1 = weight_factor * pre_scale_1; }
+    // prev_range_uwb_1 = curr_range_uwb_1; 
 
     // PRINT FOR TESTING
     Serial.print("Data from anchor one: ");
@@ -427,28 +452,41 @@ void ranging_handler()
   else if (device_addr == ANCHOR_ADDR_2) {
     // We know data is from anchor two
 
-
     // get data for localization
-    if (prev_range_uwb_2 == 0.0) {
-        prev_range_uwb_2 = DW1000Ranging.getDistantDevice()->getRange();
-    }
+    prev_range_uwb_2 = DW1000Ranging.getDistantDevice()->getRange();
 
-    // NOTE: might need thresholding 
-    // if (abs(DW1000Ranging.getDistantDevice()->getRange() - prev_range_uwb_1) < 0.05) {
-        
-    // }
+    // NOTE: acceleration thresholding 
+
+    acc_uwb_2 = abs((curr_range_uwb_2 - prev_range_uwb_2) / pow(delta_t, 2)); 
+
+    // outlier thresholding based on acceleration calculation differences
+    if (acc_uwb_2 - abs(acc_x) > RADIUS || acc_uwb_2 - abs(acc_y) > RADIUS || acc_uwb_2 - abs(acc_z) > RADIUS) {
+        return; 
+    }
 
     update_range_buf(range_uwb_2_buf, uwb_2_buf_idx, new_range);
 
     if (count_idx_2 < NUM_SAMPLES){ 
         count_idx_2++; 
+        // pre_scale_2 = moving_avg(range_uwb_2_buf, count_idx_2); 
         curr_range_uwb_1 = moving_avg(range_uwb_2_buf, count_idx_2);
     }
     else {
+        // pre_scale_2 = moving_avg(range_uwb_2_buf, NUM_SAMPLES); 
         curr_range_uwb_2 = moving_avg(range_uwb_2_buf, NUM_SAMPLES);
     }
 
-    prev_range_uwb_2 = curr_range_uwb_2; 
+    // if (!set_flag_2) {
+    //   weight_factor_2 = known_dist / pre_scale_2; 
+    //   set_flag_2 = 1; 
+    // }
+
+    // get a more accurate representation of range from the scaling! 
+    // if (pre_scale_2 < 0) {
+      // curr_range_uwb_2 = -weight_factor * pre_scale_2; 
+ // }
+    // else {curr_range_uwb_2 = weight_factor * pre_scale_2; }
+    // prev_range_uwb_2 = curr_range_uwb_2; 
 
     // PRINT FOR TESTING
     Serial.print("Data from anchor two: ");
