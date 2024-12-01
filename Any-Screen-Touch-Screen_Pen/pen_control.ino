@@ -64,8 +64,8 @@ SPIClass SPI2;
 Adafruit_LSM6DSL imu_dsl;
 
 // global variables for ranging storage - uwb
-float prev_range_uwb_1, curr_range_uwb_1;
-float prev_range_uwb_2, curr_range_uwb_2;
+float curr_range_uwb_1;
+float curr_range_uwb_2;
 float range_uwb_1_buf[NUM_SAMPLES] = {0};
 float range_uwb_2_buf[NUM_SAMPLES] = {0};
 int uwb_1_buf_idx = 0;
@@ -161,9 +161,6 @@ void setup()
   // init uwb communication
   SPI.begin(SPI_SCLK, SPI_MISO, SPI_MOSI, SPI_CS);
   DW1000Ranging.initCommunication(RST_pin, CS_pin, INT_pin);
-  // consider delaying
-  prev_range_uwb_1 = 0;
-  prev_range_uwb_2 = 0;
   curr_range_uwb_1 = 0;
   curr_range_uwb_2 = 0;
   // handlers of getting data and connecting to other uwb transceivers
@@ -390,7 +387,6 @@ void ranging_handler()
   // seek the anchor addresses
 
   uint16_t device_addr;
-  int size = NUM_SAMPLES; 
   float new_range; 
   float acc_uwb_1, acc_uwb_2; 
   float pre_scale_1, pre_scale_2; 
@@ -407,14 +403,17 @@ void ranging_handler()
     // We know data is from anchor one
 
     // get data for localization
-    prev_range_uwb_1 = DW1000Ranging.getDistantDevice()->getRange();
 
     // NOTE: acceleration thresholding 
-    acc_uwb_1 = abs((curr_range_uwb_1 - prev_range_uwb_1) / pow(delta_t, 2)); 
 
-    // outlier thresholding 
-    if (acc_uwb_1 - abs(acc_x) > RADIUS || acc_uwb_1 - abs(acc_y) > RADIUS || acc_uwb_1 - abs(acc_z) > RADIUS) {
-        return; 
+    // could replace 0 with any other initial value unlikely to be recorded by the uwb transceivers
+    if (curr_range_uwb_1 != 0) {
+      acc_uwb_1 = abs((curr_range_uwb_1 - new_range) / pow(delta_t, 2)); 
+
+      // outlier thresholding, RADIUS is a hyper-parameter, fine tune it! 
+      if (acc_uwb_1 - abs(acc_x) > RADIUS || acc_uwb_1 - abs(acc_y) > RADIUS || acc_uwb_1 - abs(acc_z) > RADIUS) {
+          return; 
+      }
     }
     
     update_range_buf(range_uwb_1_buf, uwb_1_buf_idx, new_range);
@@ -435,11 +434,12 @@ void ranging_handler()
     // }
 
     // get a more accurate representation of range from the scaling! 
-    // if (pre_scale_1 < 0) {
-      // curr_range_uwb_1 = -weight_factor * pre_scale_1; 
- // }
-    // else {curr_range_uwb_1 = weight_factor * pre_scale_1; }
-    // prev_range_uwb_1 = curr_range_uwb_1; 
+    // if (weight_factor_1 != 0) {
+      // if (pre_scale_1 < 0) {
+        // curr_range_uwb_1 = -weight_factor_1 * pre_scale_1; 
+      // }
+      // else {curr_range_uwb_1 = weight_factor_1 * pre_scale_1; }
+  //  }
 
     // PRINT FOR TESTING
     Serial.print("Data from anchor one: ");
@@ -453,15 +453,17 @@ void ranging_handler()
     // We know data is from anchor two
 
     // get data for localization
-    prev_range_uwb_2 = DW1000Ranging.getDistantDevice()->getRange();
 
     // NOTE: acceleration thresholding 
 
-    acc_uwb_2 = abs((curr_range_uwb_2 - prev_range_uwb_2) / pow(delta_t, 2)); 
+    // could replace 0 with any other initial value unlikely to be recorded by the uwb transceivers
+    if (curr_range_uwb_2 != 0) {
+      acc_uwb_2 = abs((curr_range_uwb_2 - new_range) / pow(delta_t, 2)); 
 
-    // outlier thresholding based on acceleration calculation differences
-    if (acc_uwb_2 - abs(acc_x) > RADIUS || acc_uwb_2 - abs(acc_y) > RADIUS || acc_uwb_2 - abs(acc_z) > RADIUS) {
-        return; 
+      // outlier thresholding based on acceleration calculation differences
+      if (acc_uwb_2 - abs(acc_x) > RADIUS || acc_uwb_2 - abs(acc_y) > RADIUS || acc_uwb_2 - abs(acc_z) > RADIUS) {
+          return; 
+      }
     }
 
     update_range_buf(range_uwb_2_buf, uwb_2_buf_idx, new_range);
@@ -482,11 +484,12 @@ void ranging_handler()
     // }
 
     // get a more accurate representation of range from the scaling! 
-    // if (pre_scale_2 < 0) {
-      // curr_range_uwb_2 = -weight_factor * pre_scale_2; 
- // }
-    // else {curr_range_uwb_2 = weight_factor * pre_scale_2; }
-    // prev_range_uwb_2 = curr_range_uwb_2; 
+    // if (weight_factor_2 != 0) {
+      // if (pre_scale_2 < 0) {
+        // curr_range_uwb_2 = -weight_factor_2 * pre_scale_2; 
+    //  }
+      // else {curr_range_uwb_2 = weight_factor_2 * pre_scale_2; }
+  //  }
 
     // PRINT FOR TESTING
     Serial.print("Data from anchor two: ");
