@@ -40,11 +40,12 @@
 #define g 9.8
 
 // BLE mouse vars
-#define SCROLL_THRES 2000 // hold for 2 seconds to scroll
+#define SCROLL_THRES 3000 // hold for 3 seconds to scroll
 #define CLICK_THRES 2000
 
 // samples for ranging
 #define NUM_SAMPLES 50
+#define ACC_THRES 2
 
 // BLE setup
 BLEServer *pServer = NULL;
@@ -63,8 +64,8 @@ SPIClass SPI2;
 Adafruit_LSM6DSL imu_dsl;
 
 // global variables for ranging storage - uwb
-float prev_range_uwb_1, curr_range_uwb_1;
-float prev_range_uwb_2, curr_range_uwb_2;
+float prev_prev_range_uwb_1, prev_range_uwb_1, curr_range_uwb_1;
+float prev_prev_range_uwb_2, prev_range_uwb_2, curr_range_uwb_2;
 float range_uwb_1_buf[NUM_SAMPLES] = {0};
 float range_uwb_2_buf[NUM_SAMPLES] = {0};
 int uwb_1_buf_idx = 0;
@@ -72,6 +73,12 @@ int uwb_2_buf_idx = 0;
 int count_idx_1 = 0;
 int count_idx_2 = 0;
 int ranging_flag = 0;
+// float weight_factor_1 = 0; 
+// float weight_factor_2 = 0; 
+// float known_dist_1 = 0; // change to actual known_distance for scaling configuration 
+// float known_dist_2 = 0; // change to actual known_distance for scaling configuration 
+// int set_flag_1 = 0; 
+// int set_flag_2 = 0; 
 
 // global variables for imu
 float acc_x, acc_y, acc_z;
@@ -84,8 +91,8 @@ float trust_factor = 0.95;
 float trust_factor_complement = 1 - trust_factor;
 
 // time-keeping
-float delta_t;
-unsigned long prev_time;
+float delta_t, delta_t_uwb;
+unsigned long prev_time, prev_time_uwb;
 
 // global variables to keep track of current screen coordinates
 float curr_x, curr_y;
@@ -156,6 +163,8 @@ void setup()
   SPI.begin(SPI_SCLK, SPI_MISO, SPI_MOSI, SPI_CS);
   DW1000Ranging.initCommunication(RST_pin, CS_pin, INT_pin);
   // consider delaying
+  prev_prev_range_uwb_1 = 0;
+  prev_prev_range_uwb_2 = 0; 
   prev_range_uwb_1 = 0;
   prev_range_uwb_2 = 0;
   curr_range_uwb_1 = 0;
@@ -312,7 +321,7 @@ void localization_algo(float roll_angle, float pitch_angle, float range_uwb_1, f
 void send_mouse_emulation() {
 
   int delta_cursor_x, delta_cursor_y;
-  int scroll_amount = 1; // default, test via visual feedback
+  int scroll_amount = 5; // default, test via visual feedback
 
   unsigned long press_duration;
 
@@ -399,6 +408,18 @@ void ranging_handler()
 
   uint16_t device_addr;
   float new_range;
+  float acc_imu_mag; 
+  float prev_vel, new_vel; 
+  float acc_uwb_mag; 
+  float gravity_y, gravity_z; 
+
+  // update time variables
+  delta_t_uwb = (millis() - prev_time_uwb) / 1000.0;
+
+  // get imu acceleration 
+  gravity_y = -sin(curr_pitch_angle * PI / 180) * 9.81;
+  gravity_z = cos(curr_pitch_angle * PI / 180) * cos(curr_roll_angle * PI / 180) * 9.81;
+  acc_imu_mag = sqrt(pow((acc_y - gravity_y), 2) + pow((acc_z - gravity_z), 2)); // only care about y and z 2-d coord 
 
   // loop until both the anchor devices are found
   // curr_device = DW1000Ranging.getDistantDevice();
@@ -409,25 +430,45 @@ void ranging_handler()
     // We know data is from anchor one
 
     // get data for localization
-    if (prev_range_uwb_1 == 0.0) {
-        prev_range_uwb_1 = DW1000Ranging.getDistantDevice()->getRange();
-    }
 
-    // NOTE: might need thresholding
-    // if (abs(DW1000Ranging.getDistantDevice()->getRange() - prev_range_uwb_1) < 0.05) {
-       
-    // }
+    if (prev_prev_range_uwb_1 != 0.0 && prev_range_uwb_1 != 0.0) {
+      prev_vel = (prev_range_uwb_1 - prev_prev_range_uwb_1) / delta_t_uwb; 
+      new_vel = (new_range - prev_range_uwb_1) / delta_t_uwb; 
+
+      acc_uwb_mag = abs((new_vel - prev_vel) / delta_t_uwb);
+
+      if (acc_uwb_mag - acc_imu_mag > ACC_THRES) {
+        Serial.println("Acceleration threshold exceeded, ignoring sample");
+        return; 
+      }
+    }
 
     update_range_buf(range_uwb_1_buf, uwb_1_buf_idx, new_range);
 
     if (count_idx_1 < NUM_SAMPLES){
         count_idx_1++;
+        // pre_scale_1 = moving_avg(range_uwb_1_buf, count_idx_1); 
         curr_range_uwb_1 = moving_avg(range_uwb_1_buf, count_idx_1);
     }
     else {
+        // pre_scale_1 = moving_avg(range_uwb_1_buf, NUM_SAMPLES); 
         curr_range_uwb_1 = moving_avg(range_uwb_1_buf, NUM_SAMPLES);
     }
 
+    // if (!set_flag_1) {
+    //   weight_factor_1 = known_dist_1 / pre_scale_1; 
+    //   set_flag_1 = 1; 
+    // }
+
+    // get a more accurate representation of range from the scaling! 
+    // if (weight_factor_1 != 0) {
+      // if (pre_scale_1 < 0) {
+        // curr_range_uwb_1 = -weight_factor_1 * pre_scale_1; 
+      // }
+      // else {curr_range_uwb_1 = weight_factor_1 * pre_scale_1; }
+  //  }
+
+    prev_prev_range_uwb_1 = prev_range_uwb_1; 
     prev_range_uwb_1 = curr_range_uwb_1;
 
     // PRINT FOR TESTING
@@ -441,16 +482,17 @@ void ranging_handler()
   else if (device_addr == ANCHOR_ADDR_2) {
     // We know data is from anchor two
 
+    if (prev_prev_range_uwb_2 != 0.0 && prev_range_uwb_2 != 0.0) {
+      prev_vel = (prev_range_uwb_2 - prev_prev_range_uwb_2) / delta_t_uwb; 
+      new_vel = (new_range - prev_range_uwb_2) / delta_t_uwb; 
 
-    // get data for localization
-    if (prev_range_uwb_2 == 0.0) {
-        prev_range_uwb_2 = DW1000Ranging.getDistantDevice()->getRange();
+      acc_uwb_mag = abs((new_vel - prev_vel) / delta_t_uwb);
+
+      if (acc_uwb_mag - acc_imu_mag > ACC_THRES) {
+        Serial.println("Acceleration threshold exceeded, ignoring sample");
+        return; 
+      }
     }
-
-    // NOTE: might need thresholding
-    // if (abs(DW1000Ranging.getDistantDevice()->getRange() - prev_range_uwb_1) < 0.05) {
-       
-    // }
 
     update_range_buf(range_uwb_2_buf, uwb_2_buf_idx, new_range);
 
@@ -462,6 +504,20 @@ void ranging_handler()
         curr_range_uwb_2 = moving_avg(range_uwb_2_buf, NUM_SAMPLES);
     }
 
+    // if (!set_flag_2) {
+    //   weight_factor_2 = known_dist_2 / pre_scale_2; 
+    //   set_flag_2 = 1; 
+    // }
+
+    // get a more accurate representation of range from the scaling! 
+    // if (weight_factor_2 != 0) {
+      // if (pre_scale_2 < 0) {
+        // curr_range_uwb_2 = -weight_factor_2 * pre_scale_2; 
+      // }
+      // else {curr_range_uwb_2 = weight_factor_2 * pre_scale_2; }
+  //  }
+
+    prev_prev_range_uwb_2 = prev_range_uwb_2; 
     prev_range_uwb_2 = curr_range_uwb_2;
 
     // PRINT FOR TESTING
@@ -473,6 +529,7 @@ void ranging_handler()
   }
 
   ranging_flag = 1;
+  prev_time_uwb = millis(); 
 }
 
 void new_dev_handler(DW1000Device* dev)
