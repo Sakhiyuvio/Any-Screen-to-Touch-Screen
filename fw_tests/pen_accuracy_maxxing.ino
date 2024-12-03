@@ -271,105 +271,54 @@ void loop() // Arduino IDE, continuous looping
 
 }
 
-void localization_algo(float roll_angle, float pitch_angle, 
-                       float range_uwb_1, float range_uwb_2, 
-                       float pen_length, float screen_width, float screen_height, 
-                       int res_x, int res_y) {
-  // Convert angles to radians
-  float pitch_angle_rad = pitch_angle * PI / 180;
-  float roll_angle_rad = roll_angle * PI / 180;
+// localization function
+void localization_algo(float roll_angle, float pitch_angle, float range_uwb_1, float range_uwb_2, float pen_length, float screen_width, float screen_height, int res_x, int res_y) {
+  // END GOAL: UPDATE CURR_X and CURR_Y for screen emulation
 
-  // More standard triangulation method
-  // Assuming anchors are known positions (you'll need to replace with actual anchor coordinates)
-  float anchor1_x = 0.0;  // X coordinate of first anchor
-  float anchor1_y = 0.0;  // Y coordinate of first anchor
-  float anchor2_x = screen_width;  // X coordinate of second anchor
-  float anchor2_y = 0.0;  // Y coordinate of second anchor
+  // process the UWB ranging data
+  float x_coord, y_coord, x_tilt_offset, y_tilt_offset;
+  float pitch_angle_rad, roll_angle_rad;
+  float opp_side_trig;
+  float adj_side_trig;
 
-  // Trilateration calculation (example - you may need to adjust)
-  float A = -2 * anchor1_x + 2 * anchor2_x;
-  float B = -2 * anchor1_y + 2 * anchor2_y;
-  float C = pow(range_uwb_1, 2) - pow(range_uwb_2, 2) - 
-            pow(anchor1_x, 2) + pow(anchor2_x, 2) - 
-            pow(anchor1_y, 2) + pow(anchor2_y, 2);
+  x_coord = (pow(range_uwb_1, 2) + pow(screen_width, 2) - pow(range_uwb_2, 2)) / (2 * screen_width);
+  adj_side_trig = pow(range_uwb_1, 2) + pow(screen_width, 2) - pow(range_uwb_2, 2);
+  opp_side_trig = sqrt(abs(pow(2 * range_uwb_1 * screen_width, 2) - pow(adj_side_trig, 2)));
+  y_coord = opp_side_trig / (2 * screen_width);
 
-  float D = -2 * anchor2_x + 2 * anchor1_x;
-  float E = -2 * anchor2_y + 2 * anchor1_y;
-  float F = pow(range_uwb_2, 2) - pow(range_uwb_1, 2) - 
-            pow(anchor2_x, 2) + pow(anchor1_x, 2) - 
-            pow(anchor2_y, 2) + pow(anchor1_y, 2);
+  // take care of tilting
 
-  // Calculate x and y
-  float curr_x = (C*E - F*B) / (A*E - D*B);
-  float curr_y = (C*D - F*A) / (B*D - E*A);
+  // for now, pitch angle is forward/backward tilt
+  // roll angle is left/right tilt
+  pitch_angle_rad = pitch_angle * PI / 180;
+  roll_angle_rad = roll_angle * PI / 180;
 
-  // Apply tilt corrections
-  float y_tilt_offset = (pen_length / 100) * sin(pitch_angle_rad);
-  float x_tilt_offset = (pen_length / 100) * cos(roll_angle_rad);
+  y_tilt_offset = (pen_length / 100) * sin(pitch_angle_rad); // convert from cm to m
+  x_tilt_offset = (pen_length / 100) * cos(roll_angle_rad);
 
-  // curr_x -= x_tilt_offset;
-  curr_y += y_tilt_offset;
+  // get distance calculation
+  //    curr_x = x_coord - x_tilt_offset;
+  curr_x = x_coord; // still unsure about the x tilting offset, might add extra restriction.
+  curr_y = y_coord + y_tilt_offset; // plus or minus depends on orientation of pen button vs dwm
+  Serial.print("y_coord val: ");
+  Serial.println(y_coord);
+  Serial.print("y_tilt_offset val: ");
+  Serial.println(y_tilt_offset);
+  Serial.print("curr_ y val: ");
+  Serial.println(curr_y);
 
-  // Map to screen coordinates
-  // Center the coordinates and scale
-  int cursor_x = int((curr_x / screen_width) * res_x);
-  int cursor_y = int((curr_y / screen_height) * res_y);
-
-  // Optional: Add boundary checks
-  cursor_x = max(0, min(cursor_x, res_x - 1));
-  cursor_y = max(0, min(cursor_y, res_y - 1));
-
-  Serial.print("Calculated X: ");
+  // convert to screen pixel coordinates
+  // cursor_x = int(curr_x * (res_x / (screen_width)));
+  cursor_x = int((curr_x - screen_width/2) * (res_x / screen_width) + res_x/2);
+  // cursor_y = int(curr_y * (res_y / (screen_height)));
+  cursor_y = int((curr_y - screen_height/2) * (res_y / screen_height) + res_y/2);
+  Serial.print("cursor x val: ");
   Serial.println(cursor_x);
-  Serial.print("Calculated Y: ");
+  Serial.print("cursor y val: ");
   Serial.println(cursor_y);
+  return;
+
 }
-// // localization function
-// void localization_algo(float roll_angle, float pitch_angle, float range_uwb_1, float range_uwb_2, float pen_length, float screen_width, float screen_height, int res_x, int res_y) {
-//   // END GOAL: UPDATE CURR_X and CURR_Y for screen emulation
-
-//   // process the UWB ranging data
-//   float x_coord, y_coord, x_tilt_offset, y_tilt_offset;
-//   float pitch_angle_rad, roll_angle_rad;
-//   float opp_side_trig;
-//   float adj_side_trig;
-
-//   x_coord = (pow(range_uwb_1, 2) + pow(screen_width, 2) - pow(range_uwb_2, 2)) / (2 * screen_width);
-//   adj_side_trig = pow(range_uwb_1, 2) + pow(screen_width, 2) - pow(range_uwb_2, 2);
-//   opp_side_trig = sqrt(abs(pow(2 * range_uwb_1 * screen_width, 2) - pow(adj_side_trig, 2)));
-//   y_coord = opp_side_trig / (2 * screen_width);
-
-//   // take care of tilting
-
-//   // for now, pitch angle is forward/backward tilt
-//   // roll angle is left/right tilt
-//   pitch_angle_rad = pitch_angle * PI / 180;
-//   roll_angle_rad = roll_angle * PI / 180;
-
-//   y_tilt_offset = (pen_length / 100) * sin(pitch_angle_rad); // convert from cm to m
-//   x_tilt_offset = (pen_length / 100) * cos(roll_angle_rad);
-
-//   // get distance calculation
-//   //    curr_x = x_coord - x_tilt_offset;
-//   curr_x = x_coord; // still unsure about the x tilting offset, might add extra restriction.
-//   curr_y = y_coord + y_tilt_offset; // plus or minus depends on orientation of pen button vs dwm
-//   Serial.print("y_coord val: ");
-//   Serial.println(y_coord);
-//   Serial.print("y_tilt_offset val: ");
-//   Serial.println(y_tilt_offset);
-//   Serial.print("curr_ y val: ");
-//   Serial.println(curr_y);
-
-//   // convert to screen pixel coordinates
-//   cursor_x = int(curr_x * (res_x / (screen_width)));
-//   cursor_y = int(curr_y * (res_y / (screen_height)));
-//   Serial.print("cursor x val: ");
-//   Serial.println(cursor_x);
-//   Serial.print("cursor y val: ");
-//   Serial.println(cursor_y);
-//   return;
-
-// }
 
 // mouse emulation function
 
