@@ -77,8 +77,10 @@ int ranging_flag = 0;
 // float weight_factor_2 = 0; 
 // float known_dist_1 = 0; // change to actual known_distance for scaling configuration 
 // float known_dist_2 = 0; // change to actual known_distance for scaling configuration 
-// int set_flag_1 = 0; 
-// int set_flag_2 = 0; 
+int set_flag_1 = 0; 
+int set_flag_1_2 = 0; 
+int set_flag_2 = 0; 
+int set_flag_2_2 = 0; 
 
 // global variables for imu
 float acc_x, acc_y, acc_z;
@@ -431,7 +433,7 @@ void ranging_handler()
 
     // get data for localization
 
-    if (prev_prev_range_uwb_1 != 0.0 && prev_range_uwb_1 != 0.0) {
+    if (set_flag_1 && set_flag_1_2) {
       prev_vel = (prev_range_uwb_1 - prev_prev_range_uwb_1) / delta_t_uwb; 
       new_vel = (new_range - prev_range_uwb_1) / delta_t_uwb; 
 
@@ -455,10 +457,14 @@ void ranging_handler()
         curr_range_uwb_1 = moving_avg(range_uwb_1_buf, NUM_SAMPLES);
     }
 
-    // if (!set_flag_1) {
+    if (set_flag_1 && !set_flag_1_2) {
+      set_flag_1_2 = 1; 
+    }
+
+    if (!set_flag_1) {
     //   weight_factor_1 = known_dist_1 / pre_scale_1; 
-    //   set_flag_1 = 1; 
-    // }
+      set_flag_1 = 1; 
+    }
 
     // get a more accurate representation of range from the scaling! 
     // if (weight_factor_1 != 0) {
@@ -482,7 +488,7 @@ void ranging_handler()
   else if (device_addr == ANCHOR_ADDR_2) {
     // We know data is from anchor two
 
-    if (prev_prev_range_uwb_2 != 0.0 && prev_range_uwb_2 != 0.0) {
+    if (set_flag_2 && set_flag_2_2) {
       prev_vel = (prev_range_uwb_2 - prev_prev_range_uwb_2) / delta_t_uwb; 
       new_vel = (new_range - prev_range_uwb_2) / delta_t_uwb; 
 
@@ -498,16 +504,22 @@ void ranging_handler()
 
     if (count_idx_2 < NUM_SAMPLES){
         count_idx_2++;
+        // pre_scale_1 = moving_avg(range_uwb_2_buf, count_idx_2); 
         curr_range_uwb_2 = moving_avg(range_uwb_2_buf, count_idx_2);
     }
     else {
+        // pre_scale_2 = moving_avg(range_uwb_2_buf, NUM_SAMPLES); 
         curr_range_uwb_2 = moving_avg(range_uwb_2_buf, NUM_SAMPLES);
     }
 
-    // if (!set_flag_2) {
+    if (set_flag_2 && !set_flag_2_2) {
+      set_flag_2_2 = 1; 
+    }
+
+    if (!set_flag_2) {
     //   weight_factor_2 = known_dist_2 / pre_scale_2; 
-    //   set_flag_2 = 1; 
-    // }
+      set_flag_2 = 1; 
+    }
 
     // get a more accurate representation of range from the scaling! 
     // if (weight_factor_2 != 0) {
