@@ -6,6 +6,7 @@
 #include <BLEServer.h>
 #include <Adafruit_LSM6DS.h>
 #include <Adafruit_LSM6DSL.h>
+#include <SparkFunBQ27441.h>
 
 #define PEN_UWB_ADDR "7D:00:22:EA:82:60:3B:9C" // unique addr
 #define SERVICE_UUID "12345678-1234-5678-1234-56789abcdef0"
@@ -73,14 +74,16 @@ int uwb_2_buf_idx = 0;
 int count_idx_1 = 0;
 int count_idx_2 = 0;
 int ranging_flag = 0;
-// float weight_factor_1 = 0; 
-// float weight_factor_2 = 0; 
-// float known_dist_1 = 0; // change to actual known_distance for scaling configuration 
-// float known_dist_2 = 0; // change to actual known_distance for scaling configuration 
-int set_flag_1 = 0; 
-int set_flag_1_2 = 0; 
-int set_flag_2 = 0; 
-int set_flag_2_2 = 0; 
+int ranging_flag_1 = 0;
+int ranging_flag_2 = 0;
+//float weight_factor_1 = 0;
+//float weight_factor_2 = 0;
+//float known_dist_1 = 1.393; // change to actual known_distance for scaling configuration
+//float known_dist_2 = 1.393; // change to actual known_distance for scaling configuration
+int set_flag_1 = 0;
+int set_flag_1_2 = 0;
+int set_flag_2 = 0;
+int set_flag_2_2 = 0;
 
 // global variables for imu
 float acc_x, acc_y, acc_z;
@@ -103,10 +106,13 @@ int prev_x, prev_y;
 
 // hardcoded parameters pre-calibration
 float pen_length = 9.8; // in cm
-float screen_width = 0.475; //47.5 cm
-float screen_height = 0.265; //26.5 cm
+float screen_width = 1.210; //47.5 cm lab screen, 121 cm for monitor
+float screen_height = 0.690; //26.5 cm, 69.0 cm for monitor
 int res_x = 1920;
 int res_y = 1080;
+
+// Set BATTERY_CAPACITY to the design capacity of your battery.
+const unsigned int BATTERY_CAPACITY = 850; // e.g. 850mAh battery
 
 // bluetooth mouse instance
 BleMouse bleMouse;
@@ -125,10 +131,55 @@ class MyServerCallbacks: public BLEServerCallbacks {
     }
 };
 
+void setupBQ27441(void)
+{
+  // Use lipo.begin() to initialize the BQ27441-G1A and confirm that it's
+  // connected and communicating.
+  if (!lipo.begin()) // begin() will return true if communication is successful
+  {
+	// If communication fails, print an error message and loop forever.
+    Serial.println("Error: Unable to communicate with BQ27441.");
+    Serial.println("  Check wiring and try again.");
+    Serial.println("  (Battery must be plugged into Battery Babysitter!)");
+    while (1) ;
+  }
+  Serial.println("Connected to BQ27441!");
+  
+  // Uset lipo.setCapacity(BATTERY_CAPACITY) to set the design capacity
+  // of your battery.
+  lipo.setCapacity(BATTERY_CAPACITY);
+}
+
+void printBatteryStats()
+{
+  // Read battery stats from the BQ27441-G1A
+  unsigned int soc = lipo.soc();  // Read state-of-charge (%)
+  unsigned int volts = lipo.voltage(); // Read battery voltage (mV)
+  int current = lipo.current(AVG); // Read average current (mA)
+  unsigned int fullCapacity = lipo.capacity(FULL); // Read full capacity (mAh)
+  unsigned int capacity = lipo.capacity(REMAIN); // Read remaining capacity (mAh)
+  int power = lipo.power(); // Read average power draw (mW)
+  int health = lipo.soh(); // Read state-of-health (%)
+
+  // Now print out those values:
+  String toPrint = String(soc) + "% | ";
+  toPrint += String(volts) + " mV | ";
+  toPrint += String(current) + " mA | ";
+  toPrint += String(capacity) + " / ";
+  toPrint += String(fullCapacity) + " mAh | ";
+  toPrint += String(power) + " mW | ";
+  toPrint += String(health) + "%";
+  
+  Serial.println(toPrint);
+}
+
 void setup()
 {
   Serial.begin(comm_data_rate);
   delay(comm_init_delay);
+  
+  // init battery gauge app 
+  setupBQ27441();
 
   // init IMU communication
   pinMode(IMU_INT_1, INPUT_PULLDOWN);
@@ -166,7 +217,7 @@ void setup()
   DW1000Ranging.initCommunication(RST_pin, CS_pin, INT_pin);
   // consider delaying
   prev_prev_range_uwb_1 = 0;
-  prev_prev_range_uwb_2 = 0; 
+  prev_prev_range_uwb_2 = 0;
   prev_range_uwb_1 = 0;
   prev_range_uwb_2 = 0;
   curr_range_uwb_1 = 0;
@@ -258,6 +309,9 @@ void loop() // Arduino IDE, continuous looping
 
   prev_time = millis();
 
+  // get the battery stats at each end of iteration of the loop 
+  printBatteryStats();
+
   // add logic, set a timeout based protocol to send data
   // and signal to host device for monitoring
   //    if (host_dev_connected) {
@@ -299,7 +353,8 @@ void localization_algo(float roll_angle, float pitch_angle, float range_uwb_1, f
   // get distance calculation
   //    curr_x = x_coord - x_tilt_offset;
   curr_x = x_coord; // still unsure about the x tilting offset, might add extra restriction.
-  curr_y = y_coord + y_tilt_offset; // plus or minus depends on orientation of pen button vs dwm
+//  curr_y = y_coord + y_tilt_offset; // plus or minus depends on orientation of pen button vs dwm
+  curr_y = y_coord;
   Serial.print("y_coord val: ");
   Serial.println(y_coord);
   Serial.print("y_tilt_offset val: ");
@@ -308,10 +363,8 @@ void localization_algo(float roll_angle, float pitch_angle, float range_uwb_1, f
   Serial.println(curr_y);
 
   // convert to screen pixel coordinates
-  // cursor_x = int(curr_x * (res_x / (screen_width)));
-  cursor_x = int((curr_x - screen_width/2) * (res_x / screen_width) + res_x/2);
-  // cursor_y = int(curr_y * (res_y / (screen_height)));
-  cursor_y = int((curr_y - screen_height/2) * (res_y / screen_height) + res_y/2);
+  cursor_x = int(curr_x * (res_x / (screen_width)));
+  cursor_y = int(curr_y * (res_y / (screen_height)));
   Serial.print("cursor x val: ");
   Serial.println(cursor_x);
   Serial.print("cursor y val: ");
@@ -333,10 +386,10 @@ void send_mouse_emulation() {
   delta_cursor_x = cursor_x - prev_x;
   delta_cursor_y = cursor_y - prev_y;
 
-  Serial.print("delta cur x val: ");
-  Serial.println(delta_cursor_x);
-  Serial.print("delta cur y val: ");
-  Serial.println(delta_cursor_y);
+//  Serial.print("delta cur x val: ");
+//  Serial.println(delta_cursor_x);
+//  Serial.print("delta cur y val: ");
+//  Serial.println(delta_cursor_y);
 
   if (digitalRead(PEN_BUTTON) == LOW) {
     if (is_pen_pressed == false) {
@@ -412,18 +465,23 @@ void ranging_handler()
 
   uint16_t device_addr;
   float new_range;
-  float acc_imu_mag; 
-  float prev_vel, new_vel; 
-  float acc_uwb_mag; 
-  float gravity_y, gravity_z; 
+  float acc_imu_mag;
+  float prev_vel, new_vel;
+  float acc_uwb_mag;
+  float gravity_y, gravity_z;
+  float hyp;
+//  float pre_scale_1 = 0;
+//  float pre_scale_2 = 0;
 
+  // hyp of screen width and height
+  hyp = sqrt(pow(screen_width, 2) + pow(screen_height, 2));
   // update time variables
   delta_t_uwb = (millis() - prev_time_uwb) / 1000.0;
 
-  // get imu acceleration 
+  // get imu acceleration
   gravity_y = -sin(curr_pitch_angle * PI / 180) * 9.81;
   gravity_z = cos(curr_pitch_angle * PI / 180) * cos(curr_roll_angle * PI / 180) * 9.81;
-  acc_imu_mag = sqrt(pow((acc_y - gravity_y), 2) + pow((acc_z - gravity_z), 2)); // only care about y and z 2-d coord 
+  acc_imu_mag = sqrt(pow((acc_y - gravity_y), 2) + pow((acc_z - gravity_z), 2)); // only care about y and z 2-d coord
 
   // loop until both the anchor devices are found
   // curr_device = DW1000Ranging.getDistantDevice();
@@ -432,51 +490,64 @@ void ranging_handler()
 
   if (device_addr == ANCHOR_ADDR_1) {
     // We know data is from anchor one
-
+    ranging_flag_1 = 1;
     // get data for localization
 
     if (set_flag_1 && set_flag_1_2) {
-      prev_vel = (prev_range_uwb_1 - prev_prev_range_uwb_1) / delta_t_uwb; 
-      new_vel = (new_range - prev_range_uwb_1) / delta_t_uwb; 
+      prev_vel = (prev_range_uwb_1 - prev_prev_range_uwb_1) / delta_t_uwb;
+      new_vel = (new_range - prev_range_uwb_1) / delta_t_uwb;
 
       acc_uwb_mag = abs((new_vel - prev_vel) / delta_t_uwb);
 
-      if (acc_uwb_mag - acc_imu_mag > ACC_THRES) {
-        Serial.println("Acceleration threshold exceeded, ignoring sample");
-        return; 
-      }
+      Serial.println("uwb acceleration val:");
+      Serial.print(acc_uwb_mag);
+
+//      if (acc_uwb_mag - acc_imu_mag > ACC_THRES) {
+//        Serial.println("Acceleration threshold exceeded, ignoring sample");
+//        return;
+//      }
+    }
+
+    if (new_range > 1.5 * hyp) {
+      return;
+    }
+    if (new_range < 0) {
+      return;
     }
 
     update_range_buf(range_uwb_1_buf, uwb_1_buf_idx, new_range);
 
     if (count_idx_1 < NUM_SAMPLES){
         count_idx_1++;
-        // pre_scale_1 = moving_avg(range_uwb_1_buf, count_idx_1); 
+//         pre_scale_1 = moving_avg(range_uwb_1_buf, count_idx_1);
         curr_range_uwb_1 = moving_avg(range_uwb_1_buf, count_idx_1);
     }
     else {
-        // pre_scale_1 = moving_avg(range_uwb_1_buf, NUM_SAMPLES); 
+//         pre_scale_1 = moving_avg(range_uwb_1_buf, NUM_SAMPLES);
         curr_range_uwb_1 = moving_avg(range_uwb_1_buf, NUM_SAMPLES);
     }
 
     if (set_flag_1 && !set_flag_1_2) {
-      set_flag_1_2 = 1; 
+      set_flag_1_2 = 1;
     }
 
     if (!set_flag_1) {
-    //   weight_factor_1 = known_dist_1 / pre_scale_1; 
-      set_flag_1 = 1; 
+//       weight_factor_1 = known_dist_1 / pre_scale_1;
+       set_flag_1 = 1;
     }
 
-    // get a more accurate representation of range from the scaling! 
-    // if (weight_factor_1 != 0) {
-      // if (pre_scale_1 < 0) {
-        // curr_range_uwb_1 = -weight_factor_1 * pre_scale_1; 
-      // }
-      // else {curr_range_uwb_1 = weight_factor_1 * pre_scale_1; }
-  //  }
+    // get a more accurate representation of range from the scaling!
+//     if (weight_factor_1 != 0) {
+//       if (pre_scale_1 < 0) {
+//         curr_range_uwb_1 = -weight_factor_1 * pre_scale_1;
+//       }
+//       else {curr_range_uwb_1 = weight_factor_1 * pre_scale_1; }
+//    }
+//    else {
+//      curr_range_uwb_1 = pre_scale_1;
+//    }
 
-    prev_prev_range_uwb_1 = prev_range_uwb_1; 
+    prev_prev_range_uwb_1 = prev_range_uwb_1;
     prev_range_uwb_1 = curr_range_uwb_1;
 
     // PRINT FOR TESTING
@@ -489,49 +560,62 @@ void ranging_handler()
 
   else if (device_addr == ANCHOR_ADDR_2) {
     // We know data is from anchor two
-
+    ranging_flag_2 = 1;
     if (set_flag_2 && set_flag_2_2) {
-      prev_vel = (prev_range_uwb_2 - prev_prev_range_uwb_2) / delta_t_uwb; 
-      new_vel = (new_range - prev_range_uwb_2) / delta_t_uwb; 
+      prev_vel = (prev_range_uwb_2 - prev_prev_range_uwb_2) / delta_t_uwb;
+      new_vel = (new_range - prev_range_uwb_2) / delta_t_uwb;
 
       acc_uwb_mag = abs((new_vel - prev_vel) / delta_t_uwb);
 
-      if (acc_uwb_mag - acc_imu_mag > ACC_THRES) {
-        Serial.println("Acceleration threshold exceeded, ignoring sample");
-        return; 
-      }
+      Serial.println("uwb acceleration val:");
+      Serial.print(acc_uwb_mag);
+
+//      if (acc_uwb_mag - acc_imu_mag > ACC_THRES) {
+//        Serial.println("Acceleration threshold exceeded, ignoring sample");
+//        return;
+//      }
+    }
+
+    if (new_range > 1.5 * hyp) {
+      return;
+    }
+    if (new_range < 0) {
+      return;
     }
 
     update_range_buf(range_uwb_2_buf, uwb_2_buf_idx, new_range);
 
     if (count_idx_2 < NUM_SAMPLES){
         count_idx_2++;
-        // pre_scale_1 = moving_avg(range_uwb_2_buf, count_idx_2); 
+//        pre_scale_2 = moving_avg(range_uwb_2_buf, count_idx_2);
         curr_range_uwb_2 = moving_avg(range_uwb_2_buf, count_idx_2);
     }
     else {
-        // pre_scale_2 = moving_avg(range_uwb_2_buf, NUM_SAMPLES); 
+//         pre_scale_2 = moving_avg(range_uwb_2_buf, NUM_SAMPLES);
         curr_range_uwb_2 = moving_avg(range_uwb_2_buf, NUM_SAMPLES);
     }
 
     if (set_flag_2 && !set_flag_2_2) {
-      set_flag_2_2 = 1; 
+      set_flag_2_2 = 1;
     }
 
     if (!set_flag_2) {
-    //   weight_factor_2 = known_dist_2 / pre_scale_2; 
-      set_flag_2 = 1; 
+//      weight_factor_2 = known_dist_2 / pre_scale_2;
+      set_flag_2 = 1;
     }
 
-    // get a more accurate representation of range from the scaling! 
-    // if (weight_factor_2 != 0) {
-      // if (pre_scale_2 < 0) {
-        // curr_range_uwb_2 = -weight_factor_2 * pre_scale_2; 
-      // }
-      // else {curr_range_uwb_2 = weight_factor_2 * pre_scale_2; }
-  //  }
+    // get a more accurate representation of range from the scaling!
+//     if (weight_factor_2 != 0) {
+//       if (pre_scale_2 < 0) {
+//         curr_range_uwb_2 = -weight_factor_2 * pre_scale_2;
+//       }
+//       else {curr_range_uwb_2 = weight_factor_2 * pre_scale_2; }
+//    }
+//    else {
+//      curr_range_uwb_2 = pre_scale_2;
+//    }
 
-    prev_prev_range_uwb_2 = prev_range_uwb_2; 
+    prev_prev_range_uwb_2 = prev_range_uwb_2;
     prev_range_uwb_2 = curr_range_uwb_2;
 
     // PRINT FOR TESTING
@@ -541,9 +625,12 @@ void ranging_handler()
     Serial.print(" m");
 
   }
-
-  ranging_flag = 1;
-  prev_time_uwb = millis(); 
+  if (ranging_flag_1 && ranging_flag_2) {
+      ranging_flag = 1;
+      ranging_flag_1 = 0;
+      ranging_flag_2 = 0;
+  }
+  prev_time_uwb = millis();
 }
 
 void new_dev_handler(DW1000Device* dev)
